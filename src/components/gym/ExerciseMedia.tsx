@@ -94,7 +94,7 @@ export function ExerciseMedia({
         <>
           <p className="text-sm font-medium text-secondary">Demo del movimiento</p>
           {!compact && (
-            <p className="text-xs text-muted">Sincroniza con ExerciseDB para cargar GIF o imagen</p>
+            <p className="text-xs text-muted">Importa el catálogo para cargar GIF o imagen</p>
           )}
         </>
       )}

@@ -7,7 +7,7 @@ import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/Button";
 import { Input, Label, Textarea } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
-import { AdminExerciseSyncPanel } from "@/components/settings/AdminExerciseSyncPanel";
+import { AdminExerciseImportPanel } from "@/components/settings/AdminExerciseImportPanel";
 import { SettingsTabs, type SettingsTab } from "@/components/settings/SettingsTabs";
 import { api, subscribeToPush, unsubscribeFromPush } from "@/lib/api-client";
 import type { Profile, Reminder } from "@/lib/types";
@@ -120,7 +120,7 @@ export default function SettingsPage() {
       <SettingsTabs active={tab} onChange={setTab} showAdmin={isAdmin} />
 
       {tab === "admin" && isAdmin ? (
-        <AdminExerciseSyncPanel />
+        <AdminExerciseImportPanel />
       ) : (
         <>
           <section className="mb-8">
