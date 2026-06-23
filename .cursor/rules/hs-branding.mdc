@@ -1,0 +1,18 @@
+---
+description: HS visual identity and design tokens (Grok-style)
+globs: src/**/*.{tsx,css}, public/**/*
+alwaysApply: true
+---
+
+# HS Branding
+
+Always follow `BRANDING.md` and `src/styles/branding.ts`.
+
+- Use CSS tokens: `bg-surface`, `text-secondary`, `accent`, `border-border` — never hardcode Starlink blue or raw hex in components.
+- Cards: `rounded-[20px]`, border `border-border`, background `bg-surface`.
+- Labels: class `grok-label` (uppercase, tracked).
+- Buttons: pill shape, primary = `bg-accent text-background`.
+- Background: `grok-bg` on full-page layouts.
+- Motion: 200ms, subtle press scale only.
+
+Import tokens when needed: `import { brand, habitLawColors } from "@/styles/branding"`.
