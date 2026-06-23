@@ -136,7 +136,17 @@ export interface ExerciseCatalog {
   rest_type: string;
   rest_seconds: number;
   instructions: string;
+  exercisedb_id?: string | null;
   demo_gif_url?: string | null;
+  image_url?: string | null;
+  image_urls?: Record<string, string> | null;
+  video_url?: string | null;
+  body_parts?: string[];
+  target_muscles?: string[];
+  secondary_muscles?: string[];
+  overview?: string | null;
+  exercise_tips?: string[];
+  variations?: string[];
   activity_count?: number;
   active: boolean;
   created_at: string;

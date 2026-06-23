@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronRight, Search, TrendingUp } from "lucide-react";
 import { Input } from "@/components/ui/Input";
 import { ExerciseDetail } from "@/components/gym/ExerciseDetail";
+import { ExerciseMediaThumb } from "@/components/gym/ExerciseMedia";
+import { MuscleGroupFilter } from "@/components/gym/MuscleGroupFilter";
 import { api } from "@/lib/api-client";
 import {
   EXERCISE_TYPE_LABELS,
@@ -114,17 +116,11 @@ export function ExerciseBrowser() {
         </button>
       </div>
 
-      <div className="mb-2 flex gap-2 overflow-x-auto pb-1 scrollbar-none">
-        <FilterChip active={!muscleGroup} onClick={() => setMuscleGroup(null)} label="Todos" />
-        {MUSCLE_GROUPS.map((g) => (
-          <FilterChip
-            key={g}
-            active={muscleGroup === g}
-            onClick={() => setMuscleGroup(g)}
-            label={g}
-          />
-        ))}
-      </div>
+      <MuscleGroupFilter
+        groups={MUSCLE_GROUPS}
+        active={muscleGroup}
+        onSelect={setMuscleGroup}
+      />
 
       {subgroups.length > 1 && (
         <div className="mb-2 flex gap-2 overflow-x-auto pb-1 scrollbar-none">
@@ -175,6 +171,7 @@ export function ExerciseBrowser() {
               onClick={() => setSelected(ex)}
               className="flex w-full items-center justify-between gap-3 rounded-[20px] border border-border bg-surface p-4 text-left transition-colors hover:border-accent-soft/30 active:scale-[0.99]"
             >
+              <ExerciseMediaThumb exercise={ex} className="h-14 w-14" />
               <div className="min-w-0 flex-1">
                 <p className="font-medium tracking-tight">{ex.name}</p>
                 <p className="mt-0.5 text-xs text-muted">

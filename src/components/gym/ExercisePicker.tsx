@@ -5,6 +5,9 @@ import { ArrowLeft, Check, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
+import { ExerciseMedia, ExerciseMediaThumb } from "@/components/gym/ExerciseMedia";
+import { MuscleGroupFilter } from "@/components/gym/MuscleGroupFilter";
+import { MuscleTags } from "@/components/gym/MuscleTags";
 import { api } from "@/lib/api-client";
 import type { ExerciseCatalog } from "@/lib/types";
 import {
@@ -75,33 +78,7 @@ export function ExercisePicker({ onSelect, onClose, excludeIds = [] }: ExerciseP
             onChange={(e) => setSearch(e.currentTarget.value)}
           />
         </div>
-        <div className="mt-3 flex gap-2 overflow-x-auto pb-1 scrollbar-none">
-          <button
-            type="button"
-            onClick={() => setMuscleGroup(null)}
-            className={cn(
-              "shrink-0 rounded-full border px-3 py-1.5 text-xs transition-colors",
-              !muscleGroup ? "border-accent-soft bg-accent/10 text-accent" : "border-border text-muted"
-            )}
-          >
-            Todos
-          </button>
-          {MUSCLE_GROUPS.map((g) => (
-            <button
-              key={g}
-              type="button"
-              onClick={() => setMuscleGroup(g)}
-              className={cn(
-                "shrink-0 rounded-full border px-3 py-1.5 text-xs transition-colors",
-                muscleGroup === g
-                  ? "border-accent-soft bg-accent/10 text-accent"
-                  : "border-border text-muted"
-              )}
-            >
-              {g}
-            </button>
-          ))}
-        </div>
+        <MuscleGroupFilter groups={MUSCLE_GROUPS} active={muscleGroup} onSelect={setMuscleGroup} />
       </header>
 
       <div className="flex flex-1 flex-col overflow-hidden">
@@ -128,8 +105,9 @@ export function ExercisePicker({ onSelect, onClose, excludeIds = [] }: ExerciseP
                       : "border-border bg-surface hover:border-accent-soft/30"
                   )}
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
+                  <div className="flex items-start gap-3">
+                    <ExerciseMediaThumb exercise={ex} className="h-12 w-12" />
+                    <div className="min-w-0 flex-1">
                       <p className="font-medium tracking-tight">{ex.name}</p>
                       <p className="mt-0.5 text-xs text-muted">{ex.muscle_subgroup}</p>
                     </div>
@@ -153,11 +131,19 @@ export function ExercisePicker({ onSelect, onClose, excludeIds = [] }: ExerciseP
         {preview && (
           <div className="border-t border-border bg-surface p-4 pb-8 safe-bottom">
             <Card className="mb-4 space-y-3 p-4">
+              <ExerciseMedia exercise={preview} compact className="mb-1" />
               <div>
                 <p className="grok-label">{preview.muscle_group}</p>
                 <h3 className="text-lg font-semibold">{preview.name}</h3>
               </div>
-              <p className="text-sm leading-relaxed text-secondary">{preview.instructions}</p>
+              <p className="text-sm leading-relaxed text-secondary">
+                {preview.overview?.trim() || preview.instructions}
+              </p>
+              <MuscleTags
+                bodyParts={preview.body_parts}
+                targetMuscles={preview.target_muscles}
+                secondaryMuscles={preview.secondary_muscles}
+              />
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div className="rounded-xl bg-surface-muted p-2">
                   <span className="text-muted">Forma</span>
