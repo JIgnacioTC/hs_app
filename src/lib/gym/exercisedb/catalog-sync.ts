@@ -1,5 +1,5 @@
 import {
-  fetchAllExerciseDbExercises,
+  fetchExercisesByBodyPart,
   findExerciseDbMatch,
   getExerciseDbExercise,
   listExerciseDbExercises,
@@ -106,7 +106,7 @@ export async function resolveCatalogExercise(
   if (hint?.exactId) {
     const cached = cache?.find((e) => e.exercisedb_id === hint.exactId);
     if (cached) return cached;
-    return getExerciseDbExercise(hint.exactId);
+    return getExerciseDbExercise(hint.exactId, { preferOss: true });
   }
 
   const bodyPart =
@@ -120,8 +120,44 @@ export async function resolveCatalogExercise(
   return findExerciseDbMatch(searchTerms, bodyPart, pool);
 }
 
+const SYNC_BODY_PARTS = [
+  "chest",
+  "back",
+  "shoulders",
+  "upper arms",
+  "upper legs",
+  "lower legs",
+  "waist",
+  "cardio",
+] as const;
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function loadExerciseDbCache(): Promise<NormalizedExerciseDbExercise[]> {
-  return fetchAllExerciseDbExercises();
+  const byId = new Map<string, NormalizedExerciseDbExercise>();
+
+  for (const bodyPart of SYNC_BODY_PARTS) {
+    try {
+      const exercises = await fetchExercisesByBodyPart(bodyPart);
+      for (const exercise of exercises) {
+        byId.set(exercise.exercisedb_id, exercise);
+      }
+    } catch (error) {
+      console.warn(`ExerciseDB: failed body part ${bodyPart}`, error);
+    }
+    await sleep(600);
+  }
+
+  for (const hint of Object.values(CATALOG_EXERCISEDB_HINTS)) {
+    if (!hint.exactId || byId.has(hint.exactId)) continue;
+    const exercise = await getExerciseDbExercise(hint.exactId, { preferOss: true });
+    if (exercise) byId.set(exercise.exercisedb_id, exercise);
+    await sleep(300);
+  }
+
+  return [...byId.values()];
 }
 
 export async function buildMuscleGroupMediaMap(): Promise<Record<string, string>> {
@@ -132,7 +168,7 @@ export async function buildMuscleGroupMediaMap(): Promise<Record<string, string>
     const bodyPart = mapMuscleGroupToBodyPart(group);
     if (!bodyPart) continue;
     try {
-      const { exercises } = await listExerciseDbExercises({ bodyParts: bodyPart, limit: 1 });
+      const { exercises } = await listExerciseDbExercises({ bodyParts: bodyPart, limit: 1 }, { preferOss: true });
       const url = exercises[0]?.demo_media_url ?? exercises[0]?.image_url;
       if (url) media[group] = url;
     } catch {

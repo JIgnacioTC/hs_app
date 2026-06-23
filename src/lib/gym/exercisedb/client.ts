@@ -11,20 +11,37 @@ import type {
   NormalizedExerciseDbExercise,
 } from "@/lib/gym/exercisedb/types";
 
-const DEFAULT_BASE_URL =
+const V2_BASE_URL =
   process.env.EXERCISEDB_API_URL?.replace(/\/$/, "") ?? "https://v2.exercisedb.dev";
-const FALLBACK_BASE_URL =
+const OSS_BASE_URL =
   process.env.EXERCISEDB_FALLBACK_URL?.replace(/\/$/, "") ?? "https://oss.exercisedb.dev";
 
-function buildHeaders(): HeadersInit {
+const RETRYABLE_STATUSES = new Set([429, 502, 503, 504]);
+const MAX_RETRIES = 4;
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function shouldUseV2(): boolean {
+  return process.env.EXERCISEDB_USE_V2 === "true" && Boolean(process.env.EXERCISEDB_API_KEY);
+}
+
+function resolveBases(preferOss = false): string[] {
+  if (preferOss || !shouldUseV2()) {
+    return shouldUseV2() ? [OSS_BASE_URL, V2_BASE_URL] : [OSS_BASE_URL];
+  }
+  return [V2_BASE_URL, OSS_BASE_URL];
+}
+
+function buildHeaders(forV2: boolean): HeadersInit {
   const headers: Record<string, string> = {
     Accept: "application/json",
     "User-Agent": "HS-Gym/1.0",
   };
 
-  const apiKey = process.env.EXERCISEDB_API_KEY;
-  if (apiKey) {
-    headers["X-RapidAPI-Key"] = apiKey;
+  if (forV2 && process.env.EXERCISEDB_API_KEY) {
+    headers["X-RapidAPI-Key"] = process.env.EXERCISEDB_API_KEY;
     headers["X-RapidAPI-Host"] =
       process.env.EXERCISEDB_RAPIDAPI_HOST ??
       "edb-with-videos-and-images-by-ascendapi.p.rapidapi.com";
@@ -39,39 +56,44 @@ function isJsonResponse(contentType: string | null): boolean {
 
 async function fetchExerciseDb<T>(
   path: string,
-  options?: { baseUrl?: string; allowFallback?: boolean }
+  options?: { baseUrl?: string; preferOss?: boolean }
 ): Promise<T> {
-  const hasApiKey = Boolean(process.env.EXERCISEDB_API_KEY);
-  const primary = options?.baseUrl ?? DEFAULT_BASE_URL;
-  const fallback = FALLBACK_BASE_URL;
-
-  // Without a paid API key, OSS is more reliable than v2 (often blocked on server IPs).
-  const bases =
-    options?.allowFallback === false
-      ? [primary]
-      : hasApiKey
-        ? [primary, fallback]
-        : [fallback, primary];
+  const bases = options?.baseUrl ? [options.baseUrl] : resolveBases(options?.preferOss);
 
   let lastError: Error | null = null;
 
   for (const base of bases) {
     const url = `${base}${path.startsWith("/") ? path : `/${path}`}`;
-    try {
-      const res = await fetch(url, {
-        headers: buildHeaders(),
-        cache: "no-store",
-      });
+    const forV2 = base === V2_BASE_URL;
 
-      const contentType = res.headers.get("content-type");
-      if (!res.ok || !isJsonResponse(contentType)) {
-        lastError = new Error(`ExerciseDB ${res.status} at ${base}`);
-        continue;
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      try {
+        const res = await fetch(url, {
+          headers: buildHeaders(forV2),
+          cache: "no-store",
+        });
+
+        const contentType = res.headers.get("content-type");
+
+        if (RETRYABLE_STATUSES.has(res.status)) {
+          lastError = new Error(`ExerciseDB ${res.status} at ${base}`);
+          const delay = 800 * 2 ** attempt;
+          await sleep(delay);
+          continue;
+        }
+
+        if (!res.ok || !isJsonResponse(contentType)) {
+          lastError = new Error(`ExerciseDB ${res.status} at ${base}`);
+          break;
+        }
+
+        return (await res.json()) as T;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        if (attempt < MAX_RETRIES - 1) {
+          await sleep(800 * 2 ** attempt);
+        }
       }
-
-      return (await res.json()) as T;
-    } catch (error) {
-      lastError = error instanceof Error ? error : new Error(String(error));
     }
   }
 
@@ -92,10 +114,12 @@ function buildQuery(params: ExerciseDbQuery): string {
 }
 
 export async function listExerciseDbExercises(
-  query: ExerciseDbQuery = {}
+  query: ExerciseDbQuery = {},
+  options?: { preferOss?: boolean }
 ): Promise<{ exercises: NormalizedExerciseDbExercise[]; meta?: ExerciseDbListResponse<ExerciseDbRawExercise>["meta"] }> {
   const response = await fetchExerciseDb<ExerciseDbListResponse<ExerciseDbRawExercise>>(
-    `/api/v1/exercises${buildQuery(query)}`
+    `/api/v1/exercises${buildQuery(query)}`,
+    options
   );
 
   return {
@@ -105,11 +129,13 @@ export async function listExerciseDbExercises(
 }
 
 export async function getExerciseDbExercise(
-  exerciseId: string
+  exerciseId: string,
+  options?: { preferOss?: boolean }
 ): Promise<NormalizedExerciseDbExercise | null> {
   try {
     const response = await fetchExerciseDb<ExerciseDbItemResponse<ExerciseDbRawExercise>>(
-      `/api/v1/exercises/${encodeURIComponent(exerciseId)}`
+      `/api/v1/exercises/${encodeURIComponent(exerciseId)}`,
+      options
     );
     if (!response.data) return null;
     return normalizeExerciseDbExercise(response.data);
@@ -120,21 +146,24 @@ export async function getExerciseDbExercise(
 
 export async function listExerciseDbBodyParts(): Promise<ExerciseDbNamedItem[]> {
   const response = await fetchExerciseDb<ExerciseDbListResponse<ExerciseDbNamedItem>>(
-    "/api/v1/bodyparts"
+    "/api/v1/bodyparts",
+    { preferOss: true }
   );
   return response.data ?? [];
 }
 
 export async function listExerciseDbMuscles(): Promise<ExerciseDbNamedItem[]> {
   const response = await fetchExerciseDb<ExerciseDbListResponse<ExerciseDbNamedItem>>(
-    "/api/v1/muscles"
+    "/api/v1/muscles",
+    { preferOss: true }
   );
   return response.data ?? [];
 }
 
 export async function listExerciseDbEquipments(): Promise<ExerciseDbNamedItem[]> {
   const response = await fetchExerciseDb<ExerciseDbListResponse<ExerciseDbNamedItem>>(
-    "/api/v1/equipments"
+    "/api/v1/equipments",
+    { preferOss: true }
   );
   return response.data ?? [];
 }
@@ -145,21 +174,26 @@ export async function searchExerciseDbByMuscleGroup(
 ): Promise<NormalizedExerciseDbExercise[]> {
   const bodyPart = mapMuscleGroupToBodyPart(muscleGroup);
   if (!bodyPart) return [];
-  const { exercises } = await listExerciseDbExercises({ bodyParts: bodyPart, limit });
+  const { exercises } = await listExerciseDbExercises({ bodyParts: bodyPart, limit }, { preferOss: true });
   return exercises;
 }
 
-export async function fetchAllExerciseDbExercises(
-  maxPages = 20
+/** Fetch all exercises for one body part (paginated, OSS, throttled). */
+export async function fetchExercisesByBodyPart(
+  bodyPart: string
 ): Promise<NormalizedExerciseDbExercise[]> {
   const all: NormalizedExerciseDbExercise[] = [];
   let cursor: string | undefined;
 
-  for (let page = 0; page < maxPages; page++) {
-    const { exercises, meta } = await listExerciseDbExercises({ limit: 100, cursor });
+  for (let page = 0; page < 5; page++) {
+    const { exercises, meta } = await listExerciseDbExercises(
+      { bodyParts: bodyPart, limit: 100, cursor },
+      { preferOss: true }
+    );
     all.push(...exercises);
     if (!meta?.hasNextPage || !meta.nextCursor) break;
     cursor = meta.nextCursor;
+    await sleep(500);
   }
 
   return all;
@@ -187,10 +221,14 @@ export async function findExerciseDbMatch(
   }
 
   if (bodyPart) {
-    const { exercises } = await listExerciseDbExercises({ bodyParts: bodyPart, limit: 100 });
+    const exercises = await fetchExercisesByBodyPart(bodyPart);
     const hit = tryMatch(exercises);
     if (hit) return hit;
   }
 
   return null;
+}
+
+export function getExerciseDbOssBaseUrl() {
+  return OSS_BASE_URL;
 }

@@ -77,7 +77,7 @@ export async function POST(request: Request) {
         err instanceof Error ? err.message : "No se pudo conectar con ExerciseDB";
       return NextResponse.json(
         {
-          error: `ExerciseDB no disponible: ${message}. Comprueba EXERCISEDB_FALLBACK_URL o tu API key.`,
+          error: `ExerciseDB no disponible: ${message}. Usamos oss.exercisedb.dev por defecto. Si configuraste EXERCISEDB_API_KEY, añade EXERCISEDB_USE_V2=true solo si tienes plan RapidAPI activo; si no, elimina la API key.`,
         },
         { status: 502 }
       );
