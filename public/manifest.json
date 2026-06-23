@@ -1,0 +1,25 @@
+{
+  "name": "HS — Hábitos",
+  "short_name": "HS",
+  "description": "Trackeo de hábitos y rutinas de gym",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0C0C0E",
+  "theme_color": "#0C0C0E",
+  "categories": ["health", "fitness", "lifestyle"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

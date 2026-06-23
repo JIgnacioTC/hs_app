@@ -1,36 +1,127 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# HS — Habit Tracker PWA
 
-## Getting Started
+Aplicación minimalista de trackeo de hábitos y rutinas de gym. Estilo Grok/Starlink: fondo negro, acento cyan, mobile-first.
 
-First, run the development server:
+## Stack
+
+- **Frontend**: Next.js 16 (App Router) + Tailwind CSS 4
+- **BFF**: API Routes (`/api/*`) — el cliente nunca accede directo a Supabase para datos
+- **Auth/DB**: Supabase (email + contraseña, sin 2FA)
+- **PWA**: Serwist service worker + Web Push
+- **Cron**: Endpoint protegido `/api/cron/reminders`
+
+## Setup
+
+### 1. Supabase
+
+1. Crea un proyecto en [supabase.com](https://supabase.com)
+2. En **SQL Editor**, ejecuta `supabase/migrations/001_initial_schema.sql`
+3. En **Authentication → Providers**, habilita Email (sin MFA)
+4. Copia URL y keys
+
+### 2. Variables de entorno
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env.local
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Rellena:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=eyJ...
+SUPABASE_SERVICE_ROLE_KEY=eyJ...
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+# Genera VAPID keys:
+# npx web-push generate-vapid-keys
+NEXT_PUBLIC_VAPID_PUBLIC_KEY=...
+VAPID_PRIVATE_KEY=...
+VAPID_SUBJECT=mailto:tu@email.com
 
-## Learn More
+CRON_SECRET=un-secreto-largo-aleatorio
+```
 
-To learn more about Next.js, take a look at the following resources:
+### 3. Desarrollo
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm install
+npm run dev
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Abre [http://localhost:3000](http://localhost:3000)
 
-## Deploy on Vercel
+### 4. Producción / PWA
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+npm run build
+npm start
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+El service worker solo se registra en producción. Para probar PWA:
+
+1. Despliega con HTTPS (Vercel, etc.)
+2. Instala desde el navegador móvil
+3. Activa notificaciones en Ajustes o el wizard
+
+### 5. Cron de recordatorios
+
+Configura un cron externo que llame cada **5 minutos**:
+
+```bash
+curl -X POST https://tu-dominio.com/api/cron/reminders \
+  -H "Authorization: Bearer TU_CRON_SECRET"
+```
+
+Opciones:
+- **Vercel Cron** (`vercel.json`)
+- **GitHub Actions** scheduled workflow
+- **Supabase pg_cron** + `pg_net` HTTP call
+- **cron-job.org**
+
+Ejemplo `vercel.json`:
+
+```json
+{
+  "crons": [{
+    "path": "/api/cron/reminders",
+    "schedule": "*/5 * * * *"
+  }]
+}
+```
+
+Añade el header `Authorization` vía middleware o usa un secret query param si prefieres.
+
+## Estructura
+
+```
+src/
+├── app/
+│   ├── api/          # BFF endpoints
+│   ├── auth/         # Login / registro
+│   ├── wizard/       # Onboarding inicial
+│   ├── habits/       # Gestión de hábitos
+│   ├── gym/          # Rutinas de gym
+│   └── settings/     # Notificaciones y recordatorios
+├── components/
+├── lib/
+└── sw.ts             # Service worker (Serwist + push)
+supabase/
+└── migrations/       # Schema SQL
+```
+
+## Base de datos
+
+| Tabla | Descripción |
+|-------|-------------|
+| `profiles` | Perfil + wizard |
+| `habits` | Hábitos configurables |
+| `habit_logs` | Check diario |
+| `gym_routines` | Rutinas de gym |
+| `gym_exercises` | Ejercicios por rutina |
+| `gym_sessions` | Entrenamientos completados |
+| `reminders` | Recordatorios con cron |
+| `push_subscriptions` | Suscripciones Web Push |
+
+## Licencia
+
+MIT
