@@ -1,19 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, LayoutGrid, X } from "lucide-react";
+import { Check } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { Input, Label } from "@/components/ui/Input";
+import { ActiveExerciseStage } from "@/components/gym/ActiveExerciseStage";
 import { RestTimer } from "@/components/gym/RestTimer";
 import { ExerciseHistorySheet } from "@/components/gym/ExerciseHistorySheet";
 import { SetPlanEditor } from "@/components/gym/SetPlanEditor";
-import { FlowThread } from "@/components/gym/FlowThread";
 import { api } from "@/lib/api-client";
 import { stepsOf } from "@/lib/gym/flow";
 import type { Flow } from "@/lib/gym/flow";
 import { isTimeBased, type ExerciseHistory, type PlannedSet } from "@/lib/gym/sets";
 import { ensureNotificationPermission, showLocalNotification } from "@/lib/notifications";
-import type { GymExercise, GymSession } from "@/lib/types";
+import type { GymSession } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 interface SessionRunnerProps {
@@ -91,6 +90,13 @@ export function SessionRunner({ session, flow, onComplete, onExit }: SessionRunn
     }));
   };
 
+  const nextLabel =
+    setIndex < sets.length - 1
+      ? `Serie ${setIndex + 2}`
+      : exerciseIndex < exercises.length - 1
+        ? exercises[exerciseIndex + 1]?.name ?? "Siguiente"
+        : "Finalizar";
+
   const advanceAfterRest = useCallback(() => {
     setMode("work");
     if (setIndex < sets.length - 1) {
@@ -132,6 +138,24 @@ export function SessionRunner({ session, flow, onComplete, onExit }: SessionRunn
     onComplete,
   ]);
 
+  const advanceWithoutRest = useCallback(() => {
+    if (!exercise || !currentSet) return;
+
+    setCompleted((prev) => new Set(prev).add(setKey(exercise.id, currentSet.set_number)));
+
+    if (setIndex < sets.length - 1) {
+      setSetIndex((i) => i + 1);
+      return;
+    }
+    if (exerciseIndex < exercises.length - 1) {
+      setExerciseIndex((i) => i + 1);
+      setSetIndex(0);
+      return;
+    }
+    setFinishing(true);
+    setTimeout(() => void onComplete(), 1200);
+  }, [exercise, currentSet, setIndex, sets.length, exerciseIndex, exercises.length, onComplete]);
+
   async function completeSet() {
     if (!exercise || !currentSet) return;
 
@@ -148,6 +172,10 @@ export function SessionRunner({ session, flow, onComplete, onExit }: SessionRunn
     setCompleted((prev) => new Set(prev).add(setKey(exercise.id, currentSet.set_number)));
     setRestSeconds(currentSet.rest_seconds);
     setMode("rest");
+  }
+
+  function skipSet() {
+    advanceWithoutRest();
   }
 
   async function openHistory() {
@@ -170,13 +198,6 @@ export function SessionRunner({ session, flow, onComplete, onExit }: SessionRunn
     setShowSwitcher(false);
     setMode("work");
   }
-
-  const nextLabel =
-    setIndex < sets.length - 1
-      ? `Serie ${setIndex + 2}`
-      : exerciseIndex < exercises.length - 1
-        ? exercises[exerciseIndex + 1]?.name ?? "Siguiente"
-        : "Finalizar";
 
   if (finishing) {
     return (
@@ -230,153 +251,22 @@ export function SessionRunner({ session, flow, onComplete, onExit }: SessionRunn
     );
   }
 
-  const doneCount = sets.filter((s) => completed.has(setKey(exercise.id, s.set_number))).length;
-
   return (
-    <div className="fixed inset-0 z-[70] flex flex-col bg-background">
-      <header className="border-b border-border px-4 py-3 pt-safe">
-        <div className="mb-2 flex items-center justify-between">
-          <button type="button" onClick={onExit} className="rounded-full p-2 text-muted">
-            <X size={20} />
-          </button>
-          <span className="font-mono text-sm text-accent">{formatElapsed(elapsed)}</span>
-          <button
-            type="button"
-            onClick={() => setShowSwitcher(true)}
-            className="rounded-full p-2 text-muted"
-          >
-            <LayoutGrid size={20} />
-          </button>
-        </div>
-        <p className="grok-label">{flow.name}</p>
-        <FlowThread flow={flow} activeIndex={exerciseIndex} compact />
-      </header>
-
-      <div className="flex-1 overflow-y-auto px-4 py-6">
-        <div className="mb-6 flex items-start justify-between gap-2">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">{exercise.name}</h1>
-            <p className="text-sm text-muted">
-              Serie {currentSet.set_number} de {sets.length} · {doneCount} hechas
-            </p>
-          </div>
-          <div className="flex gap-2">
-            {exercise.exercise_catalog_id && (
-              <button type="button" onClick={openHistory} className="text-xs text-accent-soft underline">
-                Historial
-              </button>
-            )}
-            <button type="button" onClick={() => setEditSets(true)} className="text-xs text-muted underline">
-              Editar
-            </button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          {timeBased ? (
-            <div className="col-span-2">
-              <Label>Segundos</Label>
-              <Input
-                type="number"
-                className="font-mono text-lg"
-                value={currentSet.target_seconds ?? ""}
-                onChange={(e) =>
-                  updateCurrentSet({
-                    target_seconds: e.currentTarget.value ? Number(e.currentTarget.value) : null,
-                  })
-                }
-              />
-            </div>
-          ) : (
-            <>
-              <div>
-                <Label>Reps</Label>
-                <Input
-                  type="number"
-                  className="font-mono text-lg"
-                  value={currentSet.target_reps ?? ""}
-                  onChange={(e) =>
-                    updateCurrentSet({
-                      target_reps: e.currentTarget.value ? Number(e.currentTarget.value) : null,
-                    })
-                  }
-                />
-              </div>
-              <div>
-                <Label>Peso (kg)</Label>
-                <Input
-                  type="number"
-                  step="0.5"
-                  className="font-mono text-lg"
-                  value={currentSet.target_weight_kg ?? ""}
-                  onChange={(e) =>
-                    updateCurrentSet({
-                      target_weight_kg: e.currentTarget.value ? Number(e.currentTarget.value) : null,
-                    })
-                  }
-                />
-              </div>
-              <div>
-                <Label>RIR</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  max={5}
-                  className="font-mono text-lg"
-                  value={currentSet.target_rir ?? ""}
-                  onChange={(e) =>
-                    updateCurrentSet({
-                      target_rir: e.currentTarget.value ? Number(e.currentTarget.value) : null,
-                    })
-                  }
-                />
-              </div>
-            </>
-          )}
-          <div>
-            <Label>Descanso</Label>
-            <Input
-              type="number"
-              className="font-mono"
-              value={currentSet.rest_seconds}
-              onChange={(e) =>
-                updateCurrentSet({ rest_seconds: Number(e.currentTarget.value) || 60 })
-              }
-            />
-          </div>
-        </div>
-
-        <ul className="mt-6 space-y-2">
-          {sets.map((s, i) => {
-            const done = completed.has(setKey(exercise.id, s.set_number));
-            return (
-              <li
-                key={s.set_number}
-                className={cn(
-                  "flex items-center justify-between rounded-xl border px-3 py-2 text-sm",
-                  i === setIndex && "border-accent-soft bg-accent/5",
-                  done && "opacity-50"
-                )}
-              >
-                <span>Serie {s.set_number}</span>
-                <span className="font-mono text-xs text-muted">
-                  {timeBased
-                    ? `${s.target_seconds}s`
-                    : `${s.target_reps ?? "—"} × ${s.target_weight_kg ?? "—"} kg`}
-                </span>
-                {done && <Check size={14} className="text-success" />}
-              </li>
-            );
-          })}
-        </ul>
-      </div>
-
-      <div className="border-t border-border p-4 pb-8 safe-bottom">
-        <Button size="lg" className="gap-2" onClick={completeSet}>
-          <Check size={18} />
-          Completar serie
-        </Button>
-      </div>
+    <>
+      <ActiveExerciseStage
+        flow={flow}
+        exercise={exercise}
+        exerciseIndex={exerciseIndex}
+        sets={sets}
+        setIndex={setIndex}
+        completedKeys={completed}
+        elapsedLabel={formatElapsed(elapsed)}
+        onExit={onExit}
+        onOpenSwitcher={() => setShowSwitcher(true)}
+        onUpdateSet={updateCurrentSet}
+        onCompleteSet={() => void completeSet()}
+        onSkipSet={skipSet}
+      />
 
       {showSwitcher && (
         <div className="fixed inset-0 z-[80] bg-black/60" onClick={() => setShowSwitcher(false)}>
@@ -407,9 +297,31 @@ export function SessionRunner({ session, flow, onComplete, onExit }: SessionRunn
                 );
               })}
             </div>
+            {exercise.exercise_catalog_id && (
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSwitcher(false);
+                  void openHistory();
+                }}
+                className="mt-4 w-full text-center text-xs text-accent-soft underline"
+              >
+                Ver historial del ejercicio
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setShowSwitcher(false);
+                setEditSets(true);
+              }}
+              className="mt-2 w-full text-center text-xs text-muted underline"
+            >
+              Editar series de la sesión
+            </button>
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
