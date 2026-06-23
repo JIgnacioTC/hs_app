@@ -1,4 +1,4 @@
-/** Split catalog instructions into display steps (ExerciseDB or local text). */
+/** Split catalog instructions into display steps (dataset or local text). */
 export function parseInstructionSteps(instructions: string): string[] {
   if (!instructions.trim()) return [];
 

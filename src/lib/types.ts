@@ -136,7 +136,7 @@ export interface ExerciseCatalog {
   rest_type: string;
   rest_seconds: number;
   instructions: string;
-  exercisedb_id?: string | null;
+  dataset_id?: string | null;
   demo_gif_url?: string | null;
   image_url?: string | null;
   image_urls?: Record<string, string> | null;
