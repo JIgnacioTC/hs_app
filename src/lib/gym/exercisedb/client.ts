@@ -178,25 +178,15 @@ export async function searchExerciseDbByMuscleGroup(
   return exercises;
 }
 
-/** Fetch all exercises for one body part (paginated, OSS, throttled). */
+/** Fetch exercises for one body part (single page, OSS). */
 export async function fetchExercisesByBodyPart(
   bodyPart: string
 ): Promise<NormalizedExerciseDbExercise[]> {
-  const all: NormalizedExerciseDbExercise[] = [];
-  let cursor: string | undefined;
-
-  for (let page = 0; page < 5; page++) {
-    const { exercises, meta } = await listExerciseDbExercises(
-      { bodyParts: bodyPart, limit: 100, cursor },
-      { preferOss: true }
-    );
-    all.push(...exercises);
-    if (!meta?.hasNextPage || !meta.nextCursor) break;
-    cursor = meta.nextCursor;
-    await sleep(500);
-  }
-
-  return all;
+  const { exercises } = await listExerciseDbExercises(
+    { bodyParts: bodyPart, limit: 100 },
+    { preferOss: true }
+  );
+  return exercises;
 }
 
 export async function findExerciseDbMatch(

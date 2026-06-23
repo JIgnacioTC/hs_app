@@ -1,5 +1,4 @@
 import {
-  fetchExercisesByBodyPart,
   findExerciseDbMatch,
   getExerciseDbExercise,
   listExerciseDbExercises,
@@ -65,6 +64,8 @@ export const CATALOG_EXERCISEDB_HINTS: Record<string, CatalogSyncHint> = {
   "salto-cuerda": { searchTerms: ["jump rope"], bodyPart: "cardio" },
 };
 
+export const SYNC_BATCH_SIZE = 5;
+
 export interface CatalogEnrichmentPayload {
   exercisedb_id: string | null;
   demo_gif_url: string | null;
@@ -97,6 +98,35 @@ export function toCatalogEnrichment(
   };
 }
 
+export function getBodyPartForSlug(slug: string, muscleGroup?: string): string | undefined {
+  const hint = CATALOG_EXERCISEDB_HINTS[slug];
+  if (hint?.bodyPart) return hint.bodyPart;
+  if (muscleGroup) return mapMuscleGroupToBodyPart(muscleGroup) ?? undefined;
+  return undefined;
+}
+
+export async function loadCacheForBodyParts(
+  bodyParts: string[]
+): Promise<NormalizedExerciseDbExercise[]> {
+  const byId = new Map<string, NormalizedExerciseDbExercise>();
+
+  for (const bodyPart of bodyParts) {
+    try {
+      const { exercises } = await listExerciseDbExercises(
+        { bodyParts: bodyPart, limit: 100 },
+        { preferOss: true }
+      );
+      for (const exercise of exercises) {
+        byId.set(exercise.exercisedb_id, exercise);
+      }
+    } catch (error) {
+      console.warn(`ExerciseDB: failed body part ${bodyPart}`, error);
+    }
+  }
+
+  return [...byId.values()];
+}
+
 export async function resolveCatalogExercise(
   slug: string,
   muscleGroup?: string,
@@ -109,55 +139,15 @@ export async function resolveCatalogExercise(
     return getExerciseDbExercise(hint.exactId, { preferOss: true });
   }
 
-  const bodyPart =
-    hint?.bodyPart ?? (muscleGroup ? mapMuscleGroupToBodyPart(muscleGroup) ?? undefined : undefined);
+  const bodyPart = getBodyPartForSlug(slug, muscleGroup);
   const searchTerms = hint?.searchTerms ?? [slug.replace(/-/g, " ")];
 
-  const pool = cache && bodyPart
-    ? cache.filter((e) => e.body_parts.some((part) => part.toLowerCase() === bodyPart))
-    : cache;
+  const pool =
+    cache && bodyPart
+      ? cache.filter((e) => e.body_parts.some((part) => part.toLowerCase() === bodyPart))
+      : cache;
 
   return findExerciseDbMatch(searchTerms, bodyPart, pool);
-}
-
-const SYNC_BODY_PARTS = [
-  "chest",
-  "back",
-  "shoulders",
-  "upper arms",
-  "upper legs",
-  "lower legs",
-  "waist",
-  "cardio",
-] as const;
-
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-export async function loadExerciseDbCache(): Promise<NormalizedExerciseDbExercise[]> {
-  const byId = new Map<string, NormalizedExerciseDbExercise>();
-
-  for (const bodyPart of SYNC_BODY_PARTS) {
-    try {
-      const exercises = await fetchExercisesByBodyPart(bodyPart);
-      for (const exercise of exercises) {
-        byId.set(exercise.exercisedb_id, exercise);
-      }
-    } catch (error) {
-      console.warn(`ExerciseDB: failed body part ${bodyPart}`, error);
-    }
-    await sleep(600);
-  }
-
-  for (const hint of Object.values(CATALOG_EXERCISEDB_HINTS)) {
-    if (!hint.exactId || byId.has(hint.exactId)) continue;
-    const exercise = await getExerciseDbExercise(hint.exactId, { preferOss: true });
-    if (exercise) byId.set(exercise.exercisedb_id, exercise);
-    await sleep(300);
-  }
-
-  return [...byId.values()];
 }
 
 export async function buildMuscleGroupMediaMap(): Promise<Record<string, string>> {
@@ -168,7 +158,10 @@ export async function buildMuscleGroupMediaMap(): Promise<Record<string, string>
     const bodyPart = mapMuscleGroupToBodyPart(group);
     if (!bodyPart) continue;
     try {
-      const { exercises } = await listExerciseDbExercises({ bodyParts: bodyPart, limit: 1 }, { preferOss: true });
+      const { exercises } = await listExerciseDbExercises(
+        { bodyParts: bodyPart, limit: 1 },
+        { preferOss: true }
+      );
       const url = exercises[0]?.demo_media_url ?? exercises[0]?.image_url;
       if (url) media[group] = url;
     } catch {

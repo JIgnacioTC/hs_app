@@ -11,6 +11,7 @@ interface CatalogSyncStats {
   total: number;
   synced: number;
   pending: number;
+  batch_size?: number;
 }
 
 interface SyncResultItem {
@@ -20,8 +21,12 @@ interface SyncResultItem {
   reason?: string;
 }
 
-interface SyncResponse {
+interface SyncBatchResponse {
   ok: boolean;
+  done: boolean;
+  offset: number;
+  nextOffset: number;
+  total: number;
   synced: number;
   results: SyncResultItem[];
 }
@@ -31,7 +36,10 @@ export function AdminExerciseSyncPanel() {
   const [loadingStats, setLoadingStats] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [syncAll, setSyncAll] = useState(false);
-  const [lastSync, setLastSync] = useState<SyncResponse | null>(null);
+  const [progress, setProgress] = useState(0);
+  const [lastSync, setLastSync] = useState<{ synced: number; results: SyncResultItem[] } | null>(
+    null
+  );
   const [error, setError] = useState<string | null>(null);
 
   const loadStats = useCallback(async () => {
@@ -54,14 +62,39 @@ export function AdminExerciseSyncPanel() {
   async function runSync() {
     setSyncing(true);
     setError(null);
+    setProgress(0);
+
+    const batchSize = stats?.batch_size ?? 5;
+    let offset = 0;
+    let done = false;
+    let totalSynced = 0;
+    const allResults: SyncResultItem[] = [];
+
     try {
-      const result = await api.post<SyncResponse>("/api/gym/exercisedb/sync", { all: syncAll });
-      setLastSync(result);
+      while (!done) {
+        const result = await api.post<SyncBatchResponse>("/api/gym/exercisedb/sync", {
+          all: syncAll,
+          offset,
+          limit: batchSize,
+        });
+
+        allResults.push(...result.results);
+        totalSynced += result.synced;
+        offset = result.nextOffset;
+        done = result.done;
+        setProgress(result.total > 0 ? Math.min(1, offset / result.total) : 1);
+      }
+
+      setLastSync({ synced: totalSynced, results: allResults });
       await loadStats();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al sincronizar");
+      if (allResults.length > 0) {
+        setLastSync({ synced: totalSynced, results: allResults });
+      }
     } finally {
       setSyncing(false);
+      setProgress(0);
     }
   }
 
@@ -74,7 +107,7 @@ export function AdminExerciseSyncPanel() {
         <p className="grok-label mb-1">Catálogo ExerciseDB</p>
         <p className="text-sm text-secondary">
           Vincula ejercicios locales con ExerciseDB para cargar GIFs, imágenes y metadatos de
-          músculos.
+          músculos. La sync se ejecuta en lotes pequeños para evitar timeouts.
         </p>
       </div>
 
@@ -99,9 +132,25 @@ export function AdminExerciseSyncPanel() {
           </div>
         </div>
 
+        {syncing && (
+          <div>
+            <div className="mb-1 flex justify-between text-xs text-muted">
+              <span>Sincronizando…</span>
+              <span>{Math.round(progress * 100)}%</span>
+            </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-surface-muted">
+              <div
+                className="h-full bg-accent transition-all duration-300"
+                style={{ width: `${Math.round(progress * 100)}%` }}
+              />
+            </div>
+          </div>
+        )}
+
         <button
           type="button"
           onClick={() => setSyncAll((value) => !value)}
+          disabled={syncing}
           className={cn(
             "flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left text-sm transition-colors",
             syncAll ? "border-accent-soft bg-accent/10" : "border-border bg-surface-muted"
@@ -137,7 +186,8 @@ export function AdminExerciseSyncPanel() {
             </p>
             {skipped.length > 0 && (
               <p className="mt-2 text-xs text-muted">
-                Omitidos: {skipped.map((r) => `${r.slug}${r.reason ? ` (${r.reason})` : ""}`).join(", ")}
+                Omitidos:{" "}
+                {skipped.map((r) => `${r.slug}${r.reason ? ` (${r.reason})` : ""}`).join(", ")}
               </p>
             )}
             {notFound.length > 0 && (
@@ -163,7 +213,12 @@ function Stat({
 }) {
   return (
     <div className="rounded-xl bg-surface-muted px-2 py-2">
-      <p className={cn("font-mono text-lg font-semibold", accent ? "text-accent" : "text-secondary")}>
+      <p
+        className={cn(
+          "font-mono text-lg font-semibold",
+          accent ? "text-accent" : "text-secondary"
+        )}
+      >
         {value}
       </p>
       <p className="text-[10px] uppercase tracking-wider text-muted">{label}</p>
