@@ -25,6 +25,9 @@ export default function HabitsPage() {
 
   useEffect(() => {
     load();
+    const params = new URLSearchParams(globalThis.location?.search ?? "");
+    const focus = params.get("focus");
+    if (focus) setExpandedId(focus);
   }, [load]);
 
   async function createHabit(payload: CreateHabitPayload) {
@@ -106,6 +109,7 @@ export default function HabitsPage() {
               expanded={expandedId === habit.id}
               onToggle={() => setExpandedId(expandedId === habit.id ? null : habit.id)}
               onDelete={() => deleteHabit(habit.id)}
+              onUpdate={load}
             />
           ))}
         </div>

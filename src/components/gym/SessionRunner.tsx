@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, LayoutGrid, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input, Label } from "@/components/ui/Input";
@@ -12,6 +12,7 @@ import { api } from "@/lib/api-client";
 import { stepsOf } from "@/lib/gym/flow";
 import type { Flow } from "@/lib/gym/flow";
 import { isTimeBased, type ExerciseHistory, type PlannedSet } from "@/lib/gym/sets";
+import { ensureNotificationPermission, showLocalNotification } from "@/lib/notifications";
 import type { GymExercise, GymSession } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -46,6 +47,7 @@ export function SessionRunner({ session, flow, onComplete, onExit }: SessionRunn
   const [editSets, setEditSets] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [finishing, setFinishing] = useState(false);
+  const sessionStarted = useRef(false);
 
   const exercise = exercises[exerciseIndex];
   const sets = exercise ? plannedMap[exercise.id] ?? [] : [];
@@ -59,6 +61,19 @@ export function SessionRunner({ session, flow, onComplete, onExit }: SessionRunn
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, [session.started_at]);
+
+  useEffect(() => {
+    if (sessionStarted.current) return;
+    sessionStarted.current = true;
+    void (async () => {
+      await ensureNotificationPermission();
+      await showLocalNotification("Sesión iniciada", {
+        body: flow.name,
+        tag: "gym-session-start",
+        url: "/gym",
+      });
+    })();
+  }, [flow.name]);
 
   const formatElapsed = (s: number) => {
     const m = Math.floor(s / 60);
@@ -80,16 +95,42 @@ export function SessionRunner({ session, flow, onComplete, onExit }: SessionRunn
     setMode("work");
     if (setIndex < sets.length - 1) {
       setSetIndex((i) => i + 1);
+      void showLocalNotification("Siguiente serie", {
+        body: `${exercise?.name ?? "Ejercicio"} · Serie ${setIndex + 2}`,
+        tag: "gym-next-set",
+        url: "/gym",
+        silent: true,
+      });
       return;
     }
     if (exerciseIndex < exercises.length - 1) {
+      const nextEx = exercises[exerciseIndex + 1];
       setExerciseIndex((i) => i + 1);
       setSetIndex(0);
+      void showLocalNotification("Siguiente ejercicio", {
+        body: nextEx?.name ?? "Continuar",
+        tag: "gym-next-exercise",
+        url: "/gym",
+      });
       return;
     }
     setFinishing(true);
+    void showLocalNotification("¡Sesión completa!", {
+      body: `${flow.name} · ${formatElapsed(elapsed)}`,
+      tag: "gym-session-complete",
+      url: "/gym",
+    });
     setTimeout(() => void onComplete(), 1200);
-  }, [setIndex, sets.length, exerciseIndex, exercises.length, onComplete]);
+  }, [
+    setIndex,
+    sets.length,
+    exerciseIndex,
+    exercises,
+    exercise?.name,
+    flow.name,
+    elapsed,
+    onComplete,
+  ]);
 
   async function completeSet() {
     if (!exercise || !currentSet) return;
@@ -153,6 +194,7 @@ export function SessionRunner({ session, flow, onComplete, onExit }: SessionRunn
         onFinish={advanceAfterRest}
         exerciseName={exercise?.name ?? ""}
         nextLabel={nextLabel}
+        flowName={flow.name}
       />
     );
   }

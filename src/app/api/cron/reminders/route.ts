@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/utils/supabase/admin";
-import { shouldSendReminder } from "@/lib/cron";
+import { shouldSendReminder, reminderDeepLink } from "@/lib/cron";
 import { sendPushNotification } from "@/lib/push";
 
 function authorizeCron(request: Request): boolean {
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
         await sendPushNotification(sub, {
           title: reminder.title,
           body: reminder.body || "Recordatorio HS",
-          url: reminder.linked_type === "gym" ? "/gym" : "/",
+          url: reminderDeepLink(reminder.linked_type, reminder.linked_id),
         });
         sent++;
       } catch (e) {

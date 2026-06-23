@@ -4,6 +4,7 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { StreakBadge, WeeklyDots } from "@/components/habits/StreakBadge";
 import { FourLawsRow, IdentityChip } from "@/components/habits/FourLawsRow";
+import { HabitReminderSection } from "@/components/habits/HabitReminderSection";
 import type { Habit } from "@/lib/types";
 import { cn, DAYS_SHORT } from "@/lib/utils";
 
@@ -12,11 +13,13 @@ export function HabitManageCard({
   expanded,
   onToggle,
   onDelete,
+  onUpdate,
 }: {
   habit: Habit;
   expanded: boolean;
   onToggle: () => void;
   onDelete: () => void;
+  onUpdate?: () => void;
 }) {
   const intention =
     habit.implementation_intention ||
@@ -67,6 +70,7 @@ export function HabitManageCard({
             <p className="text-xs text-muted">Apilado después de: {habit.stack_after.name}</p>
           )}
           <FourLawsRow habit={habit} />
+          <HabitReminderSection habit={habit} onUpdate={() => onUpdate?.()} />
           <p className="text-xs text-muted">
             {habit.target_days.map((d) => DAYS_SHORT[d]).join(" · ")}
           </p>

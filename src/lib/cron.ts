@@ -40,3 +40,34 @@ export function describeCron(cron: string): string {
   if (preset) return preset.label;
   return cron;
 }
+
+/** targetDays: 0=Dom … 6=Sáb (JS getDay) */
+export function timeAndDaysToCron(hour: number, minute: number, targetDays: number[]): string {
+  const sorted = [...targetDays].sort((a, b) => a - b);
+  const days =
+    sorted.length === 7 || sorted.length === 0 ? "*" : sorted.join(",");
+  return `${minute} ${hour} * * ${days}`;
+}
+
+export function parseCronTime(cron: string): { hour: number; minute: number } | null {
+  const parts = cron.trim().split(/\s+/);
+  if (parts.length < 2) return null;
+  const minute = parseInt(parts[0], 10);
+  const hour = parseInt(parts[1], 10);
+  if (!Number.isFinite(minute) || !Number.isFinite(hour)) return null;
+  return { hour, minute };
+}
+
+export const HABIT_REMINDER_TIMES = [
+  { label: "7:00", hour: 7, minute: 0 },
+  { label: "8:00", hour: 8, minute: 0 },
+  { label: "12:00", hour: 12, minute: 0 },
+  { label: "18:00", hour: 18, minute: 0 },
+  { label: "21:00", hour: 21, minute: 0 },
+] as const;
+
+export function reminderDeepLink(linkedType: string | null, linkedId: string | null): string {
+  if (linkedType === "gym") return "/gym";
+  if (linkedType === "habit") return linkedId ? `/habits?focus=${linkedId}` : "/habits";
+  return "/";
+}

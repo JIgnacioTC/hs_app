@@ -17,6 +17,7 @@ export default function SettingsPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushError, setPushError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -43,13 +44,27 @@ export default function SettingsPage() {
   }, [load]);
 
   async function togglePush() {
+    setPushError(null);
     if (pushEnabled) {
       await unsubscribeFromPush();
       setPushEnabled(false);
-    } else {
-      const ok = await subscribeToPush();
-      setPushEnabled(ok);
+      return;
     }
+
+    const { publicKey } = await api.get<{ publicKey: string }>("/api/push/subscribe");
+    if (!publicKey) {
+      setPushError(
+        "Faltan las claves VAPID en Vercel. Añade NEXT_PUBLIC_VAPID_PUBLIC_KEY y VAPID_PRIVATE_KEY, luego redeploy."
+      );
+      return;
+    }
+
+    const ok = await subscribeToPush();
+    if (!ok) {
+      setPushError("No se pudo activar. Comprueba permisos del navegador y que estés en HTTPS.");
+      return;
+    }
+    setPushEnabled(true);
   }
 
   async function createReminder(e: React.FormEvent) {
@@ -112,12 +127,16 @@ export default function SettingsPage() {
             {pushEnabled ? "Desactivar" : "Activar"}
           </Button>
         </Card>
+        <p className="mt-2 text-xs text-muted">
+          Los recordatorios por hábito se configuran en cada tarjeta de hábito.
+        </p>
+        {pushError && <p className="mt-2 text-xs text-danger">{pushError}</p>}
       </section>
 
       <section className="mb-8">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-xs font-medium uppercase tracking-widest text-muted">
-            Recordatorios
+            Recordatorios generales
           </h2>
           <Button size="sm" onClick={() => setShowForm(!showForm)} className="gap-1">
             <Plus size={16} />

@@ -74,7 +74,24 @@ export async function GET(request: Request) {
     ? await attachStats(supabase, user!.id, data ?? [])
     : (data ?? []);
 
-  return NextResponse.json(habits);
+  const ids = habits.map((h) => (h as { id: string }).id);
+  let withReminders = habits;
+
+  if (ids.length) {
+    const { data: reminders } = await supabase
+      .from("reminders")
+      .select("*")
+      .eq("user_id", user!.id)
+      .eq("linked_type", "habit")
+      .in("linked_id", ids);
+
+    withReminders = habits.map((h) => ({
+      ...h,
+      reminder: (reminders ?? []).find((r) => r.linked_id === (h as { id: string }).id) ?? null,
+    }));
+  }
+
+  return NextResponse.json(withReminders);
 }
 
 export async function POST(request: Request) {
@@ -157,6 +174,13 @@ export async function DELETE(request: Request) {
   if (dbError) {
     return NextResponse.json({ error: dbError.message }, { status: 500 });
   }
+
+  await supabase
+    .from("reminders")
+    .update({ enabled: false })
+    .eq("user_id", user!.id)
+    .eq("linked_type", "habit")
+    .eq("linked_id", id);
 
   return NextResponse.json({ ok: true });
 }

@@ -32,6 +32,7 @@ export interface Habit {
   created_at: string;
   stats?: HabitStats;
   stack_after?: Pick<Habit, "id" | "name"> | null;
+  reminder?: Reminder | null;
 }
 
 export interface HabitStats {

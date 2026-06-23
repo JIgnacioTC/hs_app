@@ -2,6 +2,10 @@
 
 Aplicación minimalista de trackeo de hábitos y rutinas de gym. Estilo Grok/Starlink: fondo negro, acento cyan, mobile-first.
 
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/JIgnacioTC/hs_app)
+
+> Despliegue y notificaciones push en producción: **[VERCEL.md](./VERCEL.md)**
+
 ## Stack
 
 - **Frontend**: Next.js 16 (App Router) + Tailwind CSS 4
@@ -65,31 +69,18 @@ El service worker solo se registra en producción. Para probar PWA:
 
 ### 5. Cron de recordatorios
 
-Configura un cron externo que llame cada **5 minutos**:
+El cron está definido en `vercel.json`. Vercel envía `Authorization: Bearer CRON_SECRET` automáticamente si la variable existe.
+
+**Importante:** en plan **Hobby**, Vercel solo ejecuta crons **1 vez al día**. Para recordatorios cada 5 minutos necesitas **Pro** o un cron externo. Detalle completo en [VERCEL.md](./VERCEL.md).
+
+Prueba manual:
 
 ```bash
 curl -X POST https://tu-dominio.com/api/cron/reminders \
   -H "Authorization: Bearer TU_CRON_SECRET"
 ```
 
-Opciones:
-- **Vercel Cron** (`vercel.json`)
-- **GitHub Actions** scheduled workflow
-- **Supabase pg_cron** + `pg_net` HTTP call
-- **cron-job.org**
-
-Ejemplo `vercel.json`:
-
-```json
-{
-  "crons": [{
-    "path": "/api/cron/reminders",
-    "schedule": "*/5 * * * *"
-  }]
-}
-```
-
-Añade el header `Authorization` vía middleware o usa un secret query param si prefieres.
+Alternativas al cron de Vercel: GitHub Actions, cron-job.org, Supabase pg_cron + pg_net.
 
 ## Estructura
 
