@@ -8,6 +8,8 @@ export async function GET(request: Request) {
   if (error) return error;
 
   const { searchParams } = new URL(request.url);
+  const name = searchParams.get("name") ?? undefined;
+  const keywords = searchParams.get("keywords") ?? undefined;
   const bodyParts =
     searchParams.get("bodyParts") ??
     (searchParams.get("muscle_group")
@@ -22,6 +24,8 @@ export async function GET(request: Request) {
 
   try {
     const { exercises, meta } = await listExerciseDbExercises({
+      name,
+      keywords,
       bodyParts: bodyParts ?? undefined,
       targetMuscles: targetMuscles ?? undefined,
       equipments: equipments ?? undefined,

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { getSupabaseServerClient } from "@/utils/supabase/server";
 import { requireAdmin, jsonError } from "@/lib/api-helpers";
+import { isRapidApiConfigured } from "@/lib/gym/exercisedb/client";
 import {
   CATALOG_EXERCISEDB_HINTS,
   SYNC_BATCH_SIZE,
@@ -42,6 +43,7 @@ export async function GET() {
     synced,
     pending: total - synced,
     batch_size: SYNC_BATCH_SIZE,
+    provider: isRapidApiConfigured() ? "rapidapi" : "oss",
   });
 }
 
@@ -85,29 +87,28 @@ export async function POST(request: Request) {
         total,
         synced: 0,
         results: [],
+        provider: isRapidApiConfigured() ? "rapidapi" : "oss",
       });
     }
 
-    const bodyPartsNeeded = new Set<string>();
-    for (const row of batch) {
-      const hint = CATALOG_EXERCISEDB_HINTS[row.slug];
-      if (hint?.exactId) continue;
-      const bodyPart = getBodyPartForSlug(row.slug, row.muscle_group);
-      if (bodyPart) bodyPartsNeeded.add(bodyPart);
-    }
-
     let cache: Awaited<ReturnType<typeof loadCacheForBodyParts>> = [];
-    if (bodyPartsNeeded.size > 0) {
-      try {
-        cache = await loadCacheForBodyParts([...bodyPartsNeeded]);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "No se pudo conectar con ExerciseDB";
-        return NextResponse.json(
-          {
-            error: `ExerciseDB no disponible: ${message}. Usa oss.exercisedb.dev (elimina EXERCISEDB_API_KEY si no tienes plan RapidAPI).`,
-          },
-          { status: 502 }
-        );
+
+    if (!isRapidApiConfigured()) {
+      const bodyPartsNeeded = new Set<string>();
+      for (const row of batch) {
+        const hint = CATALOG_EXERCISEDB_HINTS[row.slug];
+        if (hint?.exactId) continue;
+        const bodyPart = getBodyPartForSlug(row.slug, row.muscle_group);
+        if (bodyPart) bodyPartsNeeded.add(bodyPart);
+      }
+
+      if (bodyPartsNeeded.size > 0) {
+        try {
+          cache = await loadCacheForBodyParts([...bodyPartsNeeded]);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : "No se pudo conectar con ExerciseDB";
+          return NextResponse.json({ error: `ExerciseDB OSS no disponible: ${message}` }, { status: 502 });
+        }
       }
     }
 
@@ -169,7 +170,7 @@ export async function POST(request: Request) {
       nextOffset,
       total,
       batch_size: batch.length,
-      cache_size: cache.length,
+      provider: isRapidApiConfigured() ? "rapidapi" : "oss",
       synced: results.filter((r) => r.status === "updated").length,
       results,
     });

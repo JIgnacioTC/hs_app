@@ -5,7 +5,7 @@ export interface ExerciseDbImageUrls {
   "1080p"?: string;
 }
 
-/** Raw exercise payload from ExerciseDB v1 (OSS) or v2. */
+/** Raw exercise payload from ExerciseDB v1 (OSS) or v2 (RapidAPI). */
 export interface ExerciseDbRawExercise {
   exerciseId: string;
   name: string;
@@ -74,6 +74,11 @@ export interface NormalizedExerciseDbExercise {
 }
 
 export interface ExerciseDbQuery {
+  /** RapidAPI v2: search by exercise name */
+  name?: string;
+  /** RapidAPI v2: comma-separated keywords e.g. "chest workout,barbell" */
+  keywords?: string;
+  /** OSS v1: filter by body part slug */
   bodyParts?: string;
   targetMuscles?: string;
   equipments?: string;

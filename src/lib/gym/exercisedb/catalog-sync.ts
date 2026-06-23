@@ -1,6 +1,7 @@
 import {
   findExerciseDbMatch,
   getExerciseDbExercise,
+  isRapidApiConfigured,
   listExerciseDbExercises,
 } from "@/lib/gym/exercisedb/client";
 import { mapMuscleGroupToBodyPart } from "@/lib/gym/exercisedb/normalize";
@@ -10,11 +11,12 @@ export interface CatalogSyncHint {
   exactId?: string;
   searchTerms?: string[];
   bodyPart?: string;
+  keywordExtras?: string[];
 }
 
 /** Known mappings from our curated slugs to ExerciseDB entries. */
 export const CATALOG_EXERCISEDB_HINTS: Record<string, CatalogSyncHint> = {
-  "press-banca-plano": { exactId: "EIeI8Vf" },
+  "press-banca-plano": { searchTerms: ["barbell bench press", "bench press"], bodyPart: "chest", keywordExtras: ["barbell"] },
   "press-banca-inclinado": { searchTerms: ["incline dumbbell press"], bodyPart: "chest" },
   "press-banca-declinado": { searchTerms: ["decline bench press"], bodyPart: "chest" },
   "aperturas-mancuernas": { searchTerms: ["dumbbell fly"], bodyPart: "chest" },
@@ -133,21 +135,25 @@ export async function resolveCatalogExercise(
   cache?: NormalizedExerciseDbExercise[]
 ): Promise<NormalizedExerciseDbExercise | null> {
   const hint = CATALOG_EXERCISEDB_HINTS[slug];
-  if (hint?.exactId) {
-    const cached = cache?.find((e) => e.exercisedb_id === hint.exactId);
-    if (cached) return cached;
-    return getExerciseDbExercise(hint.exactId, { preferOss: true });
-  }
-
   const bodyPart = getBodyPartForSlug(slug, muscleGroup);
   const searchTerms = hint?.searchTerms ?? [slug.replace(/-/g, " ")];
+
+  if (hint?.exactId?.startsWith("exr_")) {
+    const cached = cache?.find((e) => e.exercisedb_id === hint.exactId);
+    if (cached) return cached;
+    return getExerciseDbExercise(hint.exactId);
+  }
+
+  if (isRapidApiConfigured()) {
+    return findExerciseDbMatch(searchTerms, bodyPart, undefined, hint?.keywordExtras);
+  }
 
   const pool =
     cache && bodyPart
       ? cache.filter((e) => e.body_parts.some((part) => part.toLowerCase() === bodyPart))
       : cache;
 
-  return findExerciseDbMatch(searchTerms, bodyPart, pool);
+  return findExerciseDbMatch(searchTerms, bodyPart, pool, hint?.keywordExtras);
 }
 
 export async function buildMuscleGroupMediaMap(): Promise<Record<string, string>> {

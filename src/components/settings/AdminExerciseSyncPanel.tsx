@@ -12,6 +12,7 @@ interface CatalogSyncStats {
   synced: number;
   pending: number;
   batch_size?: number;
+  provider?: "rapidapi" | "oss";
 }
 
 interface SyncResultItem {
@@ -106,8 +107,8 @@ export function AdminExerciseSyncPanel() {
       <div>
         <p className="grok-label mb-1">Catálogo ExerciseDB</p>
         <p className="text-sm text-secondary">
-          Vincula ejercicios locales con ExerciseDB para cargar GIFs, imágenes y metadatos de
-          músculos. La sync se ejecuta en lotes pequeños para evitar timeouts.
+          Vincula ejercicios locales con ExerciseDB (RapidAPI v2) para cargar imágenes HD y
+          metadatos. La sync se ejecuta en lotes pequeños para evitar timeouts.
         </p>
       </div>
 
@@ -121,11 +122,18 @@ export function AdminExerciseSyncPanel() {
             {loadingStats ? (
               <p className="mt-1 text-sm text-muted">Cargando…</p>
             ) : stats ? (
-              <div className="mt-2 grid grid-cols-3 gap-2 text-center">
-                <Stat label="Total" value={stats.total} />
-                <Stat label="Sincronizados" value={stats.synced} accent />
-                <Stat label="Pendientes" value={stats.pending} />
-              </div>
+              <>
+                <div className="mt-2 grid grid-cols-3 gap-2 text-center">
+                  <Stat label="Total" value={stats.total} />
+                  <Stat label="Sincronizados" value={stats.synced} accent />
+                  <Stat label="Pendientes" value={stats.pending} />
+                </div>
+                {stats.provider && (
+                  <p className="mt-2 text-center text-[10px] uppercase tracking-wider text-muted">
+                    Fuente: {stats.provider === "rapidapi" ? "RapidAPI v2" : "OSS gratuito"}
+                  </p>
+                )}
+              </>
             ) : (
               <p className="mt-1 text-sm text-muted">Sin datos</p>
             )}
