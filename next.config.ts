@@ -9,6 +9,12 @@ const withSerwist = withSerwistInit({
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  images: {
+    remotePatterns: [
+      { protocol: "https", hostname: "static.exercisedb.dev" },
+      { protocol: "https", hostname: "cdn.exercisedb.dev" },
+    ],
+  },
 };
 
 export default withSerwist(nextConfig);

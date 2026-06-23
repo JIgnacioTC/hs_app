@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowLeft, Film } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { HistoryCharts } from "@/components/gym/HistoryCharts";
+import { ExerciseMedia } from "@/components/gym/ExerciseMedia";
+import { MuscleTags } from "@/components/gym/MuscleTags";
 import { api } from "@/lib/api-client";
 import {
   EXERCISE_TYPE_LABELS,
@@ -31,6 +33,8 @@ export function ExerciseDetail({ exercise, onClose }: ExerciseDetailProps) {
       .finally(() => setLoadingHistory(false));
   }, [exercise.id]);
 
+  const description = exercise.overview?.trim() || exercise.instructions;
+
   return (
     <div className="fixed inset-0 z-[90] flex flex-col bg-background">
       <header className="border-b border-border px-4 py-4 pt-safe">
@@ -48,25 +52,30 @@ export function ExerciseDetail({ exercise, onClose }: ExerciseDetailProps) {
       </header>
 
       <div className="flex-1 overflow-y-auto px-4 py-4 pb-8">
-        <div className="mb-6 overflow-hidden rounded-[20px] border border-border bg-surface-muted">
-          {exercise.demo_gif_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={exercise.demo_gif_url}
-              alt={`Demo de ${exercise.name}`}
-              className="aspect-video w-full object-cover"
-            />
-          ) : (
-            <div className="flex aspect-video flex-col items-center justify-center gap-2 px-6 text-center">
-              <Film size={32} className="text-muted" />
-              <p className="text-sm font-medium text-secondary">Demo del movimiento</p>
-              <p className="text-xs text-muted">Aquí cargaremos el GIF de técnica</p>
+        <ExerciseMedia exercise={exercise} className="mb-6" />
+
+        <Card className="mb-6 space-y-4 p-4">
+          <p className="text-sm leading-relaxed text-secondary">{description}</p>
+
+          <MuscleTags
+            bodyParts={exercise.body_parts}
+            targetMuscles={exercise.target_muscles}
+            secondaryMuscles={exercise.secondary_muscles}
+          />
+
+          {exercise.exercise_tips && exercise.exercise_tips.length > 0 && (
+            <div>
+              <p className="grok-label mb-2">Consejos de técnica</p>
+              <ul className="space-y-2 text-sm text-secondary">
+                {exercise.exercise_tips.slice(0, 4).map((tip) => (
+                  <li key={tip.slice(0, 40)} className="leading-relaxed">
+                    {tip}
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
-        </div>
 
-        <Card className="mb-6 space-y-3 p-4">
-          <p className="text-sm leading-relaxed text-secondary">{exercise.instructions}</p>
           <div className="grid grid-cols-2 gap-2 text-xs">
             <div className="rounded-xl bg-surface-muted p-2">
               <span className="text-muted">Forma</span>
