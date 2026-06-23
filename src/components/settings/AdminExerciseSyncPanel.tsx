@@ -17,6 +17,7 @@ interface SyncResultItem {
   slug: string;
   status: "updated" | "skipped" | "not_found";
   exercisedb_id?: string;
+  reason?: string;
 }
 
 interface SyncResponse {
@@ -64,6 +65,7 @@ export function AdminExerciseSyncPanel() {
     }
   }
 
+  const skipped = lastSync?.results.filter((r) => r.status === "skipped") ?? [];
   const notFound = lastSync?.results.filter((r) => r.status === "not_found") ?? [];
 
   return (
@@ -133,6 +135,11 @@ export function AdminExerciseSyncPanel() {
             <p className="font-medium text-secondary">
               Última sincronización: {lastSync.synced} actualizados de {lastSync.results.length}
             </p>
+            {skipped.length > 0 && (
+              <p className="mt-2 text-xs text-muted">
+                Omitidos: {skipped.map((r) => `${r.slug}${r.reason ? ` (${r.reason})` : ""}`).join(", ")}
+              </p>
+            )}
             {notFound.length > 0 && (
               <p className="mt-2 text-xs text-muted">
                 Sin coincidencia en ExerciseDB: {notFound.map((r) => r.slug).join(", ")}

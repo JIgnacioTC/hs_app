@@ -41,9 +41,17 @@ async function fetchExerciseDb<T>(
   path: string,
   options?: { baseUrl?: string; allowFallback?: boolean }
 ): Promise<T> {
-  const bases = options?.allowFallback === false
-    ? [options.baseUrl ?? DEFAULT_BASE_URL]
-    : [options?.baseUrl ?? DEFAULT_BASE_URL, FALLBACK_BASE_URL];
+  const hasApiKey = Boolean(process.env.EXERCISEDB_API_KEY);
+  const primary = options?.baseUrl ?? DEFAULT_BASE_URL;
+  const fallback = FALLBACK_BASE_URL;
+
+  // Without a paid API key, OSS is more reliable than v2 (often blocked on server IPs).
+  const bases =
+    options?.allowFallback === false
+      ? [primary]
+      : hasApiKey
+        ? [primary, fallback]
+        : [fallback, primary];
 
   let lastError: Error | null = null;
 
@@ -52,7 +60,7 @@ async function fetchExerciseDb<T>(
     try {
       const res = await fetch(url, {
         headers: buildHeaders(),
-        next: { revalidate: 3600 },
+        cache: "no-store",
       });
 
       const contentType = res.headers.get("content-type");
@@ -141,34 +149,47 @@ export async function searchExerciseDbByMuscleGroup(
   return exercises;
 }
 
+export async function fetchAllExerciseDbExercises(
+  maxPages = 20
+): Promise<NormalizedExerciseDbExercise[]> {
+  const all: NormalizedExerciseDbExercise[] = [];
+  let cursor: string | undefined;
+
+  for (let page = 0; page < maxPages; page++) {
+    const { exercises, meta } = await listExerciseDbExercises({ limit: 100, cursor });
+    all.push(...exercises);
+    if (!meta?.hasNextPage || !meta.nextCursor) break;
+    cursor = meta.nextCursor;
+  }
+
+  return all;
+}
+
 export async function findExerciseDbMatch(
   searchTerms: string[],
-  bodyPart?: string
+  bodyPart?: string,
+  pool?: NormalizedExerciseDbExercise[]
 ): Promise<NormalizedExerciseDbExercise | null> {
-  for (const term of searchTerms) {
-    const { exercises } = await listExerciseDbExercises({
-      search: term,
-      bodyParts: bodyPart,
-      limit: 25,
-    });
+  const tryMatch = (source: NormalizedExerciseDbExercise[]) => {
+    for (const term of searchTerms) {
+      const exact = source.find((e) => e.name.toLowerCase() === term.toLowerCase());
+      if (exact) return exact;
 
-    const exact = exercises.find((e) =>
-      searchTerms.some((t) => e.name.toLowerCase() === t.toLowerCase())
-    );
-    if (exact) return exact;
+      const partial = source.find((e) => e.name.toLowerCase().includes(term.toLowerCase()));
+      if (partial) return partial;
+    }
+    return null;
+  };
 
-    const partial = exercises.find((e) =>
-      searchTerms.some((t) => e.name.toLowerCase().includes(t.toLowerCase()))
-    );
-    if (partial) return partial;
+  if (pool && pool.length > 0) {
+    const hit = tryMatch(pool);
+    if (hit) return hit;
   }
 
   if (bodyPart) {
     const { exercises } = await listExerciseDbExercises({ bodyParts: bodyPart, limit: 100 });
-    for (const term of searchTerms) {
-      const hit = exercises.find((e) => e.name.toLowerCase().includes(term.toLowerCase()));
-      if (hit) return hit;
-    }
+    const hit = tryMatch(exercises);
+    if (hit) return hit;
   }
 
   return null;

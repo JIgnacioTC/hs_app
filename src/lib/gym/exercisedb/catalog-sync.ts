@@ -1,4 +1,5 @@
 import {
+  fetchAllExerciseDbExercises,
   findExerciseDbMatch,
   getExerciseDbExercise,
   listExerciseDbExercises,
@@ -98,10 +99,13 @@ export function toCatalogEnrichment(
 
 export async function resolveCatalogExercise(
   slug: string,
-  muscleGroup?: string
+  muscleGroup?: string,
+  cache?: NormalizedExerciseDbExercise[]
 ): Promise<NormalizedExerciseDbExercise | null> {
   const hint = CATALOG_EXERCISEDB_HINTS[slug];
   if (hint?.exactId) {
+    const cached = cache?.find((e) => e.exercisedb_id === hint.exactId);
+    if (cached) return cached;
     return getExerciseDbExercise(hint.exactId);
   }
 
@@ -109,7 +113,15 @@ export async function resolveCatalogExercise(
     hint?.bodyPart ?? (muscleGroup ? mapMuscleGroupToBodyPart(muscleGroup) ?? undefined : undefined);
   const searchTerms = hint?.searchTerms ?? [slug.replace(/-/g, " ")];
 
-  return findExerciseDbMatch(searchTerms, bodyPart);
+  const pool = cache && bodyPart
+    ? cache.filter((e) => e.body_parts.some((part) => part.toLowerCase() === bodyPart))
+    : cache;
+
+  return findExerciseDbMatch(searchTerms, bodyPart, pool);
+}
+
+export async function loadExerciseDbCache(): Promise<NormalizedExerciseDbExercise[]> {
+  return fetchAllExerciseDbExercises();
 }
 
 export async function buildMuscleGroupMediaMap(): Promise<Record<string, string>> {
