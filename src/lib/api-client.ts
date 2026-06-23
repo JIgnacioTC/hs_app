@@ -1,7 +1,25 @@
 "use client";
 
 async function handleResponse<T>(res: Response): Promise<T> {
-  const data = await res.json();
+  const contentType = res.headers.get("content-type") ?? "";
+  const raw = await res.text();
+
+  if (!contentType.includes("application/json")) {
+    const snippet = raw.trim().slice(0, 120);
+    throw new Error(
+      res.ok
+        ? "Respuesta inválida del servidor"
+        : `Error ${res.status}${snippet ? `: ${snippet}` : ""}`
+    );
+  }
+
+  let data: { error?: string };
+  try {
+    data = JSON.parse(raw) as { error?: string };
+  } catch {
+    throw new Error("Respuesta inválida del servidor (JSON corrupto)");
+  }
+
   if (!res.ok) throw new Error(data.error ?? "Error de servidor");
   return data as T;
 }
