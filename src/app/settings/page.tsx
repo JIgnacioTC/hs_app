@@ -7,6 +7,8 @@ import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/Button";
 import { Input, Label, Textarea } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
+import { AdminExerciseSyncPanel } from "@/components/settings/AdminExerciseSyncPanel";
+import { SettingsTabs, type SettingsTab } from "@/components/settings/SettingsTabs";
 import { api, subscribeToPush, unsubscribeFromPush } from "@/lib/api-client";
 import type { Profile, Reminder } from "@/lib/types";
 import { CRON_PRESETS, describeCron } from "@/lib/cron";
@@ -14,6 +16,8 @@ import { cn } from "@/lib/utils";
 
 export default function SettingsPage() {
   const router = useRouter();
+  const [tab, setTab] = useState<SettingsTab>("general");
+  const [isAdmin, setIsAdmin] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [pushEnabled, setPushEnabled] = useState(false);
@@ -25,12 +29,14 @@ export default function SettingsPage() {
   const [cronPreset, setCronPreset] = useState("0 8 * * *");
 
   const load = useCallback(async () => {
-    const [p, r] = await Promise.all([
+    const [p, r, adminStatus] = await Promise.all([
       api.get<Profile>("/api/profile"),
       api.get<Reminder[]>("/api/reminders"),
+      api.get<{ is_admin: boolean }>("/api/admin/status"),
     ]);
     setProfile(p);
     setReminders(r);
+    setIsAdmin(adminStatus.is_admin);
 
     if ("serviceWorker" in navigator) {
       const reg = await navigator.serviceWorker.ready;
@@ -42,6 +48,12 @@ export default function SettingsPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!isAdmin && tab === "admin") {
+      setTab("general");
+    }
+  }, [isAdmin, tab]);
 
   async function togglePush() {
     setPushError(null);
@@ -105,145 +117,153 @@ export default function SettingsPage() {
         <p className="text-sm text-muted">{profile?.display_name}</p>
       </header>
 
-      <section className="mb-8">
-        <h2 className="mb-3 text-xs font-medium uppercase tracking-widest text-muted">
-          Notificaciones
-        </h2>
-        <Card className="flex items-center justify-between p-4">
-          <div className="flex items-center gap-3">
-            {pushEnabled ? (
-              <Bell size={20} className="text-accent" />
-            ) : (
-              <BellOff size={20} className="text-muted" />
-            )}
-            <div>
-              <p className="text-sm font-medium">Push en celular</p>
-              <p className="text-xs text-muted">
-                {pushEnabled ? "Activadas" : "Desactivadas"}
-              </p>
-            </div>
-          </div>
-          <Button variant="outline" size="sm" onClick={togglePush}>
-            {pushEnabled ? "Desactivar" : "Activar"}
-          </Button>
-        </Card>
-        <p className="mt-2 text-xs text-muted">
-          Los recordatorios por hábito se configuran en cada tarjeta de hábito.
-        </p>
-        {pushError && <p className="mt-2 text-xs text-danger">{pushError}</p>}
-      </section>
+      <SettingsTabs active={tab} onChange={setTab} showAdmin={isAdmin} />
 
-      <section className="mb-8">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-xs font-medium uppercase tracking-widest text-muted">
-            Recordatorios generales
-          </h2>
-          <Button size="sm" onClick={() => setShowForm(!showForm)} className="gap-1">
-            <Plus size={16} />
-            Nuevo
-          </Button>
-        </div>
-
-        {showForm && (
-          <Card className="mb-4 p-4">
-            <form onSubmit={createReminder} className="space-y-3">
-              <div>
-                <Label>Título</Label>
-                <Input
-                  placeholder="Ej: Hora de meditar"
-                  value={title}
-                  onChange={(e) => setTitle(e.currentTarget.value)}
-                  required
-                />
-              </div>
-              <div>
-                <Label>Mensaje</Label>
-                <Textarea
-                  placeholder="Mensaje de la notificación"
-                  value={body}
-                  onChange={(e) => setBody(e.currentTarget.value)}
-                />
-              </div>
-              <div>
-                <Label>Horario (cron)</Label>
-                <div className="flex flex-wrap gap-2">
-                  {CRON_PRESETS.map((p) => (
-                    <button
-                      key={p.value}
-                      type="button"
-                      onClick={() => setCronPreset(p.value)}
-                      className={cn(
-                        "rounded-full border px-3 py-1.5 text-xs transition-colors",
-                        cronPreset === p.value
-                          ? "border-accent bg-accent/15 text-accent"
-                          : "border-white/10 text-muted"
-                      )}
-                    >
-                      {p.label}
-                    </button>
-                  ))}
+      {tab === "admin" && isAdmin ? (
+        <AdminExerciseSyncPanel />
+      ) : (
+        <>
+          <section className="mb-8">
+            <h2 className="mb-3 text-xs font-medium uppercase tracking-widest text-muted">
+              Notificaciones
+            </h2>
+            <Card className="flex items-center justify-between p-4">
+              <div className="flex items-center gap-3">
+                {pushEnabled ? (
+                  <Bell size={20} className="text-accent" />
+                ) : (
+                  <BellOff size={20} className="text-muted" />
+                )}
+                <div>
+                  <p className="text-sm font-medium">Push en celular</p>
+                  <p className="text-xs text-muted">
+                    {pushEnabled ? "Activadas" : "Desactivadas"}
+                  </p>
                 </div>
-                {cronPreset === "custom" && (
-                  <Input
-                    className="mt-2 font-mono text-sm"
-                    placeholder="0 8 * * *"
-                    value={customCron}
-                    onChange={(e) => setCustomCron(e.currentTarget.value)}
-                  />
-                )}
               </div>
-              <Button type="submit" size="lg">
-                Crear recordatorio
+              <Button variant="outline" size="sm" onClick={togglePush}>
+                {pushEnabled ? "Desactivar" : "Activar"}
               </Button>
-            </form>
-          </Card>
-        )}
-
-        <div className="space-y-2">
-          {reminders.map((r) => (
-            <Card key={r.id} className="flex items-center gap-3 p-4">
-              <button
-                type="button"
-                onClick={() => toggleReminder(r.id, r.enabled)}
-                className={cn(
-                  "h-5 w-9 shrink-0 rounded-full transition-colors",
-                  r.enabled ? "bg-accent" : "bg-white/10"
-                )}
-              >
-                <div
-                  className={cn(
-                    "h-4 w-4 rounded-full bg-white transition-transform",
-                    r.enabled ? "translate-x-4" : "translate-x-0.5"
-                  )}
-                />
-              </button>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{r.title}</p>
-                <p className="text-xs text-muted">{describeCron(r.cron_expression)}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => deleteReminder(r.id)}
-                className="p-2 text-muted hover:text-red-400"
-              >
-                <Trash2 size={16} />
-              </button>
             </Card>
-          ))}
-          {reminders.length === 0 && (
-            <Card className="p-6 text-center">
-              <p className="text-sm text-muted">Sin recordatorios configurados</p>
-            </Card>
-          )}
-        </div>
-      </section>
+            <p className="mt-2 text-xs text-muted">
+              Los recordatorios por hábito se configuran en cada tarjeta de hábito.
+            </p>
+            {pushError && <p className="mt-2 text-xs text-danger">{pushError}</p>}
+          </section>
 
-      <section>
-        <Button variant="danger" size="lg" onClick={logout} className="gap-2">
-          <LogOut size={18} />
-          Cerrar sesión
-        </Button>
-      </section>
+          <section className="mb-8">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-xs font-medium uppercase tracking-widest text-muted">
+                Recordatorios generales
+              </h2>
+              <Button size="sm" onClick={() => setShowForm(!showForm)} className="gap-1">
+                <Plus size={16} />
+                Nuevo
+              </Button>
+            </div>
+
+            {showForm && (
+              <Card className="mb-4 p-4">
+                <form onSubmit={createReminder} className="space-y-3">
+                  <div>
+                    <Label>Título</Label>
+                    <Input
+                      placeholder="Ej: Hora de meditar"
+                      value={title}
+                      onChange={(e) => setTitle(e.currentTarget.value)}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label>Mensaje</Label>
+                    <Textarea
+                      placeholder="Mensaje de la notificación"
+                      value={body}
+                      onChange={(e) => setBody(e.currentTarget.value)}
+                    />
+                  </div>
+                  <div>
+                    <Label>Horario (cron)</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {CRON_PRESETS.map((p) => (
+                        <button
+                          key={p.value}
+                          type="button"
+                          onClick={() => setCronPreset(p.value)}
+                          className={cn(
+                            "rounded-full border px-3 py-1.5 text-xs transition-colors",
+                            cronPreset === p.value
+                              ? "border-accent bg-accent/15 text-accent"
+                              : "border-border text-muted"
+                          )}
+                        >
+                          {p.label}
+                        </button>
+                      ))}
+                    </div>
+                    {cronPreset === "custom" && (
+                      <Input
+                        className="mt-2 font-mono text-sm"
+                        placeholder="0 8 * * *"
+                        value={customCron}
+                        onChange={(e) => setCustomCron(e.currentTarget.value)}
+                      />
+                    )}
+                  </div>
+                  <Button type="submit" size="lg">
+                    Crear recordatorio
+                  </Button>
+                </form>
+              </Card>
+            )}
+
+            <div className="space-y-2">
+              {reminders.map((r) => (
+                <Card key={r.id} className="flex items-center gap-3 p-4">
+                  <button
+                    type="button"
+                    onClick={() => toggleReminder(r.id, r.enabled)}
+                    className={cn(
+                      "h-5 w-9 shrink-0 rounded-full transition-colors",
+                      r.enabled ? "bg-accent" : "bg-surface-muted"
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        "h-4 w-4 rounded-full bg-background transition-transform",
+                        r.enabled ? "translate-x-4" : "translate-x-0.5"
+                      )}
+                    />
+                  </button>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{r.title}</p>
+                    <p className="text-xs text-muted">{describeCron(r.cron_expression)}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => deleteReminder(r.id)}
+                    className="p-2 text-muted hover:text-danger"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </Card>
+              ))}
+              {reminders.length === 0 && (
+                <Card className="p-6 text-center">
+                  <p className="text-sm text-muted">Sin recordatorios configurados</p>
+                </Card>
+              )}
+            </div>
+          </section>
+
+          <section>
+            <Button variant="danger" size="lg" onClick={logout} className="gap-2">
+              <LogOut size={18} />
+              Cerrar sesión
+            </Button>
+          </section>
+        </>
+      )}
     </AppShell>
   );
 }
