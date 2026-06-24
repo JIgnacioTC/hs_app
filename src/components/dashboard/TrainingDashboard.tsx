@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { DashboardSkeleton } from "@/components/ui/Skeleton";
 import { useStaleQuery } from "@/hooks/useStaleQuery";
+import type { FitnessInsights } from "@/lib/fitness/profile";
 import {
   activeSession,
   completedSessionDates,
@@ -32,6 +33,10 @@ import { cn, formatDate } from "@/lib/utils";
 export function TrainingDashboard() {
   const router = useRouter();
   const { data: profile } = useStaleQuery<Profile>("/api/profile");
+  const { data: fitnessData } = useStaleQuery<{
+    insights: FitnessInsights;
+    complete: boolean;
+  }>("/api/profile/fitness");
   const { data: flowsData, loading: loadingFlows } = useStaleQuery<Flow[]>("/api/gym/routines");
   const { data: sessionsData, loading: loadingSessions } =
     useStaleQuery<GymSession[]>("/api/gym/sessions");
@@ -84,6 +89,45 @@ export function TrainingDashboard() {
         <StatTile label="Racha" value={`${streak}d`} icon={Flame} accent={streak > 0} />
         <StatTile label="Flujos" value={String(flows.length)} icon={TrendingUp} />
       </div>
+
+      {fitnessData?.complete && fitnessData.insights.bmi != null ? (
+        <Card className="mb-5 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="grok-label">Tu condición</p>
+              <p className="mt-1 text-sm font-medium">{fitnessData.insights.conditioning_label}</p>
+              <p className="mt-2 text-xs text-secondary">
+                IMC {fitnessData.insights.bmi}
+                {fitnessData.insights.bmi_label ? ` · ${fitnessData.insights.bmi_label}` : ""}
+                {fitnessData.insights.tdee_kcal
+                  ? ` · ~${fitnessData.insights.tdee_kcal} kcal/día`
+                  : ""}
+              </p>
+              {fitnessData.insights.training_hints[0] && (
+                <p className="mt-2 text-xs leading-relaxed text-muted">
+                  {fitnessData.insights.training_hints[0]}
+                </p>
+              )}
+            </div>
+            <Link href="/settings?tab=profile" className="shrink-0 text-xs text-accent-soft underline">
+              Editar
+            </Link>
+          </div>
+        </Card>
+      ) : (
+        <Card className="mb-5 p-4">
+          <p className="grok-label">Perfil físico</p>
+          <p className="mt-1 text-sm text-secondary">
+            Añade sexo, altura, edad y peso para personalizar tu condición y entrenamiento.
+          </p>
+          <Link
+            href="/settings?tab=profile"
+            className="mt-3 inline-flex text-xs text-accent-soft underline"
+          >
+            Completar perfil →
+          </Link>
+        </Card>
+      )}
 
       <Card className="mb-5 p-4">
         <p className="grok-label mb-3">Semana de entrenamiento</p>

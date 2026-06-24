@@ -2,10 +2,11 @@
 
 import { cn } from "@/lib/utils";
 
-export type SettingsTab = "general" | "admin";
+export type SettingsTab = "general" | "profile" | "admin";
 
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: "general", label: "General" },
+  { id: "profile", label: "Perfil" },
   { id: "admin", label: "Admin" },
 ];
 

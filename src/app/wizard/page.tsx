@@ -6,6 +6,7 @@ import {
   Bell,
   ChevronRight,
   Dumbbell,
+  HeartPulse,
   Sparkles,
   Target,
   User,
@@ -14,6 +15,13 @@ import {
 import { Button } from "@/components/ui/Button";
 import { Input, Label, Textarea } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
+import {
+  BodyProfileForm,
+  bodyProfileToPayload,
+  EMPTY_BODY_PROFILE,
+  isBodyProfileFormValid,
+  type BodyProfileFormValues,
+} from "@/components/settings/BodyProfileForm";
 import { api, subscribeToPush } from "@/lib/api-client";
 import {
   STARTER_PLANS,
@@ -26,6 +34,11 @@ import { cn } from "@/lib/utils";
 
 const STEPS = [
   { icon: User, title: "¿Cómo te llamamos?", subtitle: "Tu espacio de entrenamiento empieza aquí" },
+  {
+    icon: HeartPulse,
+    title: "Tu perfil físico",
+    subtitle: "Para calcular tu condición y recomendarte mejor",
+  },
   { icon: Target, title: "Tu objetivo", subtitle: "Personalizamos tu primer flujo" },
   { icon: Zap, title: "Tu ritmo", subtitle: "¿Cuántos días entrenas por semana?" },
   { icon: Dumbbell, title: "Primer flujo", subtitle: "Te armamos una rutina de inicio" },
@@ -37,6 +50,7 @@ export default function WizardPage() {
   const [step, setStep] = useState(0);
   const [displayName, setDisplayName] = useState("");
   const [motivation, setMotivation] = useState("");
+  const [bodyProfile, setBodyProfile] = useState<BodyProfileFormValues>(EMPTY_BODY_PROFILE);
   const [goal, setGoal] = useState<TrainingGoalId>("general");
   const [frequency, setFrequency] = useState<TrainingFrequencyId>("4");
   const [createStarter, setCreateStarter] = useState(true);
@@ -48,6 +62,8 @@ export default function WizardPage() {
   async function finish(enablePush: boolean) {
     setLoading(true);
     try {
+      await api.patch("/api/profile/fitness", bodyProfileToPayload(bodyProfile));
+
       const onboarding = await api.post<{
         starter_routine: { id: string; name: string } | null;
         profile: { focus_areas: string[] };
@@ -79,6 +95,12 @@ export default function WizardPage() {
   }
 
   const StepIcon = STEPS[step].icon;
+  const canContinue =
+    step === 0
+      ? Boolean(displayName.trim())
+      : step === 1
+        ? isBodyProfileFormValid(bodyProfile)
+        : true;
 
   return (
     <div className="grok-bg flex min-h-dvh flex-col px-6 py-8 pt-safe">
@@ -130,7 +152,9 @@ export default function WizardPage() {
           </div>
         )}
 
-        {step === 1 && (
+        {step === 1 && <BodyProfileForm values={bodyProfile} onChange={setBodyProfile} />}
+
+        {step === 2 && (
           <div className="grid grid-cols-2 gap-2">
             {TRAINING_GOALS.map((g) => (
               <button
@@ -152,7 +176,7 @@ export default function WizardPage() {
           </div>
         )}
 
-        {step === 2 && (
+        {step === 3 && (
           <div className="space-y-2">
             {TRAINING_FREQUENCY.map((f) => (
               <button
@@ -176,7 +200,7 @@ export default function WizardPage() {
           </div>
         )}
 
-        {step === 3 && (
+        {step === 4 && (
           <div className="space-y-4">
             <Card className="border-accent/20 bg-accent/5 p-4">
               <p className="grok-label text-accent">Vista previa</p>
@@ -215,7 +239,7 @@ export default function WizardPage() {
           </div>
         )}
 
-        {step === 4 && (
+        {step === 5 && (
           <Card className="p-5">
             <p className="text-sm leading-relaxed text-secondary">
               Recibe alertas cuando un amigo te envíe una rutina, comente o dé like a tus
@@ -236,7 +260,7 @@ export default function WizardPage() {
           <div className="mt-8">
             <Button
               size="lg"
-              disabled={step === 0 && !displayName.trim()}
+              disabled={!canContinue}
               onClick={() => setStep((s) => s + 1)}
               className="gap-2"
             >
