@@ -19,7 +19,7 @@ import { api } from "@/lib/api-client";
 import { sessionDetailToFlow } from "@/lib/gym/session-resume";
 import type { Flow, FlowDraftStep } from "@/lib/gym/flow";
 import type { SetLog } from "@/lib/gym/sets";
-import type { GymSession } from "@/lib/types";
+import type { GymSession, GymExercise } from "@/lib/types";
 import type { PlannedSet } from "@/lib/gym/sets";
 
 interface ActiveSession {
@@ -152,6 +152,34 @@ function GymPageInner() {
     if (editing) await refreshEditing(editing.id);
   }
 
+  async function swapStep(exerciseId: string, catalogId: string) {
+    await api.patch(`/api/gym/exercises/${exerciseId}`, {
+      exercise_catalog_id: catalogId,
+      preserve_sets: true,
+    });
+    if (editing) await refreshEditing(editing.id);
+  }
+
+  function mergeExerciseIntoFlow(flow: Flow, updated: GymExercise): Flow {
+    return {
+      ...flow,
+      gym_exercises: (flow.gym_exercises ?? []).map((step) =>
+        step.id === updated.id ? updated : step
+      ),
+    };
+  }
+
+  async function persistSessionSwap(exerciseId: string, catalogId: string) {
+    const updated = await api.patch<GymExercise>(`/api/gym/exercises/${exerciseId}`, {
+      exercise_catalog_id: catalogId,
+      preserve_sets: true,
+    });
+    setActive((prev) =>
+      prev ? { ...prev, flow: mergeExerciseIntoFlow(prev.flow, updated) } : prev
+    );
+    await refreshFlows();
+  }
+
   async function refreshEditing(flowId: string) {
     const updated = await refreshFlows();
     const fresh = updated.find((f) => f.id === flowId);
@@ -240,6 +268,7 @@ function GymPageInner() {
         onUpdateSets={updateSets}
         onUpdateFlow={(patch) => updateFlowMeta(editing.id, patch)}
         onReorder={(exerciseId, order) => reorderExercise(exerciseId, order)}
+        onSwapStep={swapStep}
         onRemoveStep={removeStep}
         onDeleteFlow={() => deleteFlow(editing.id)}
         onClose={() => setEditing(null)}
@@ -256,6 +285,7 @@ function GymPageInner() {
         onComplete={completeSession}
         onPause={pauseSession}
         onAbandon={abandonSession}
+        onPersistSwap={persistSessionSwap}
       />
     );
   }

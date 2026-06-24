@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { ExerciseAlternativesSheet } from "@/components/gym/ExerciseAlternativesSheet";
 import { ActiveExerciseStage } from "@/components/gym/ActiveExerciseStage";
 import { RestTimer } from "@/components/gym/RestTimer";
 import { ExerciseHistorySheet } from "@/components/gym/ExerciseHistorySheet";
@@ -19,7 +20,7 @@ import {
 } from "@/lib/gym/session-resume";
 import { isTimeBased, type ExerciseHistory, type PlannedSet, type SetLog } from "@/lib/gym/sets";
 import { ensureNotificationPermission, showLocalNotification } from "@/lib/notifications";
-import type { GymSession } from "@/lib/types";
+import type { GymSession, ExerciseCatalog } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 interface SessionRunnerProps {
@@ -29,6 +30,7 @@ interface SessionRunnerProps {
   onComplete: () => Promise<void>;
   onPause: () => void;
   onAbandon: () => void;
+  onPersistSwap?: (exerciseId: string, catalogId: string) => Promise<void>;
 }
 
 export function SessionRunner({
@@ -38,8 +40,24 @@ export function SessionRunner({
   onComplete,
   onPause,
   onAbandon,
+  onPersistSwap,
 }: SessionRunnerProps) {
-  const exercises = useMemo(() => stepsOf(flow), [flow]);
+  const baseExercises = useMemo(() => stepsOf(flow), [flow]);
+  const [catalogOverrides, setCatalogOverrides] = useState<Record<string, ExerciseCatalog>>({});
+  const exercises = useMemo(
+    () =>
+      baseExercises.map((step) => {
+        const override = catalogOverrides[step.id];
+        if (!override) return step;
+        return {
+          ...step,
+          name: override.name,
+          exercise_catalog_id: override.id,
+          exercise_catalog: override,
+        };
+      }),
+    [baseExercises, catalogOverrides]
+  );
   const resume = useMemo(
     () => resumePosition(flow, initialLogs),
     [flow, initialLogs]
@@ -54,6 +72,7 @@ export function SessionRunner({
   const [mode, setMode] = useState<"work" | "rest">("work");
   const [restSeconds, setRestSeconds] = useState(0);
   const [showSwitcher, setShowSwitcher] = useState(false);
+  const [showAlternatives, setShowAlternatives] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<ExerciseHistory | null>(null);
   const [editSets, setEditSets] = useState(false);
@@ -69,6 +88,13 @@ export function SessionRunner({
   const sets = exercise ? plannedMap[exercise.id] ?? [] : [];
   const currentSet = sets[setIndex];
   const timeBased = isTimeBased(exercise?.exercise_catalog?.execution_mode);
+  const routineCatalogIds = useMemo(
+    () =>
+      baseExercises
+        .map((step) => catalogOverrides[step.id]?.id ?? step.exercise_catalog_id)
+        .filter(Boolean) as string[],
+    [baseExercises, catalogOverrides]
+  );
 
   useEffect(() => {
     const start = new Date(session.started_at).getTime();
@@ -270,6 +296,33 @@ export function SessionRunner({
     setMode("work");
   }
 
+  function applyCatalogSwap(catalog: ExerciseCatalog) {
+    if (!exercise) return;
+    setCatalogOverrides((prev) => ({ ...prev, [exercise.id]: catalog }));
+    prefillRef.current.delete(catalog.id);
+    setShowAlternatives(false);
+    setShowSwitcher(false);
+  }
+
+  async function persistCatalogSwap(catalog: ExerciseCatalog) {
+    if (!exercise || !onPersistSwap) return;
+    await onPersistSwap(exercise.id, catalog.id);
+    applyCatalogSwap(catalog);
+  }
+
+  if (showAlternatives && exercise?.exercise_catalog_id) {
+    return (
+      <ExerciseAlternativesSheet
+        catalogId={exercise.exercise_catalog_id}
+        exerciseName={exercise.name}
+        excludeIds={routineCatalogIds.filter((id) => id !== exercise.exercise_catalog_id)}
+        onClose={() => setShowAlternatives(false)}
+        onSelect={applyCatalogSwap}
+        onPersist={onPersistSwap ? persistCatalogSwap : undefined}
+      />
+    );
+  }
+
   if (finishing) {
     return (
       <div className="fixed inset-0 z-[70] flex flex-col items-center justify-center bg-background">
@@ -341,6 +394,7 @@ export function SessionRunner({
         timeBased={timeBased}
         onExit={() => setConfirmExit(true)}
         onOpenSwitcher={() => setShowSwitcher(true)}
+        onOpenAlternatives={() => setShowAlternatives(true)}
         onUpdateSet={updateCurrentSet}
         onCompleteSet={() => void completeSet()}
         onCompleteExercise={() => void completeAllSetsForExercise()}
@@ -399,9 +453,21 @@ export function SessionRunner({
                 type="button"
                 onClick={() => {
                   setShowSwitcher(false);
-                  void openHistory();
+                  setShowAlternatives(true);
                 }}
                 className="mt-4 w-full text-center text-xs text-accent-soft underline"
+              >
+                Buscar alternativa similar
+              </button>
+            )}
+            {exercise.exercise_catalog_id && (
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSwitcher(false);
+                  void openHistory();
+                }}
+                className="mt-2 w-full text-center text-xs text-accent-soft underline"
               >
                 Ver historial del ejercicio
               </button>

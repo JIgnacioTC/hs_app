@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/utils/supabase/server";
 import { requireAuth, jsonError } from "@/lib/api-helpers";
+import { swapExerciseCatalog } from "@/lib/gym/routine-mutations";
 import { withNestedExerciseMedia } from "@/lib/gym/enrich-catalog-response";
 
 export async function PATCH(
@@ -11,18 +12,40 @@ export async function PATCH(
   if (error) return error;
 
   const { id } = await params;
-  let body: { sort_order?: number };
+  let body: { sort_order?: number; exercise_catalog_id?: string; preserve_sets?: boolean };
   try {
     body = await request.json();
   } catch {
     return jsonError("JSON inválido");
   }
 
-  if (body.sort_order === undefined || body.sort_order === null) {
-    return jsonError("sort_order requerido");
+  const supabase = await getSupabaseServerClient();
+
+  if (body.exercise_catalog_id) {
+    const { data: catalog, error: catalogError } = await supabase
+      .from("exercise_catalog")
+      .select("*")
+      .eq("id", body.exercise_catalog_id)
+      .eq("active", true)
+      .single();
+
+    if (catalogError || !catalog) {
+      return jsonError("Ejercicio de catálogo no encontrado", 404);
+    }
+
+    try {
+      const swapped = await swapExerciseCatalog(supabase, user!.id, id, catalog, {
+        preserveSets: body.preserve_sets !== false,
+      });
+      return NextResponse.json(swapped);
+    } catch (err) {
+      return jsonError(err instanceof Error ? err.message : "No se pudo sustituir", 400);
+    }
   }
 
-  const supabase = await getSupabaseServerClient();
+  if (body.sort_order === undefined || body.sort_order === null) {
+    return jsonError("sort_order o exercise_catalog_id requerido");
+  }
 
   const { data: exercise } = await supabase
     .from("gym_exercises")
