@@ -1,12 +1,17 @@
 import { enrichExerciseCatalogMedia } from "@/lib/gym/exercise-dataset/catalog-import";
+import { localizeCatalogExercise } from "@/lib/gym/exercise-dataset/localize-es";
 import type { ExerciseCatalog } from "@/lib/types";
 
+function applyCatalogPresentation<T extends ExerciseCatalog>(exercise: T): T {
+  return localizeCatalogExercise(enrichExerciseCatalogMedia(exercise));
+}
+
 export function withExerciseMedia<T extends ExerciseCatalog>(exercise: T): T {
-  return enrichExerciseCatalogMedia(exercise);
+  return applyCatalogPresentation(exercise);
 }
 
 export function withExerciseMediaList<T extends ExerciseCatalog>(items: T[]): T[] {
-  return items.map(enrichExerciseCatalogMedia);
+  return items.map(applyCatalogPresentation);
 }
 
 export function withNestedExerciseMedia<
@@ -15,7 +20,7 @@ export function withNestedExerciseMedia<
   if (!row.exercise_catalog) return row;
   return {
     ...row,
-    exercise_catalog: enrichExerciseCatalogMedia(row.exercise_catalog),
+    exercise_catalog: applyCatalogPresentation(row.exercise_catalog),
   };
 }
 

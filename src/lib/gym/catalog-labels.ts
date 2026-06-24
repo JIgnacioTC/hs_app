@@ -1,3 +1,5 @@
+import { translateEquipmentEn } from "@/lib/gym/exercise-dataset/localize-es";
+
 export const MUSCLE_GROUPS = [
   "Pecho",
   "Espalda",
@@ -64,5 +66,10 @@ export const EQUIPMENT_LABELS: Record<string, string> = {
 
 export function formatEquipment(equipment: string[]) {
   if (!equipment.length) return "Sin equipo";
-  return equipment.map((e) => EQUIPMENT_LABELS[e] ?? e).join(" · ");
+  return equipment
+    .map((e) => {
+      if (EQUIPMENT_LABELS[e]) return EQUIPMENT_LABELS[e];
+      return translateEquipmentEn(e.replace(/_/g, " "));
+    })
+    .join(" · ");
 }

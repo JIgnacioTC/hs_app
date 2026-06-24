@@ -1,4 +1,10 @@
 import { datasetMediaUrl } from "@/lib/gym/exercise-dataset/media";
+import {
+  translateExerciseName,
+  translateInstructions,
+  translateMuscle,
+  translateBodyPart,
+} from "@/lib/gym/exercise-dataset/localize-es";
 import type { DatasetExercise, NormalizedDatasetExercise } from "@/lib/gym/exercise-dataset/types";
 
 export function mapBodyPartToMuscleGroup(bodyPart: string): string {
@@ -44,7 +50,8 @@ function slugify(name: string, id: string): string {
 
 function mapEquipment(raw: string): string[] {
   if (!raw?.trim()) return [];
-  return [raw.toLowerCase().replace(/\s+/g, "_")];
+  const key = raw.toLowerCase().replace(/\s+/g, "_");
+  return [key];
 }
 
 function inferExerciseType(category: string, name: string): string {
@@ -80,25 +87,15 @@ function inferRest(category: string, exerciseType: string): { rest_type: string;
   return { rest_type: "medio", rest_seconds: 60 };
 }
 
-function titleCase(value: string): string {
-  return value
-    .split(/\s+/)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
-
 export function normalizeDatasetExercise(raw: DatasetExercise): NormalizedDatasetExercise {
   const muscleGroup = mapBodyPartToMuscleGroup(raw.body_part || raw.category);
-  const muscleSubgroup = titleCase(raw.target || raw.muscle_group || raw.body_part);
   const exerciseType = inferExerciseType(raw.category, raw.name);
   const executionMode = inferExecutionMode(raw.name, raw.category);
   const { rest_type, rest_seconds } = inferRest(raw.category, exerciseType);
 
   const steps = raw.instruction_steps?.en;
-  const instructions =
-    steps?.length
-      ? steps.join(" ")
-      : raw.instructions?.en?.trim() ?? "";
+  const instructionsEn =
+    steps?.length ? steps.join(" ") : raw.instructions?.en?.trim() ?? "";
 
   const bodyPart = (raw.body_part || raw.category).toLowerCase();
   const target = raw.target?.toLowerCase() ?? raw.muscle_group?.toLowerCase() ?? "";
@@ -106,21 +103,21 @@ export function normalizeDatasetExercise(raw: DatasetExercise): NormalizedDatase
 
   return {
     dataset_id: raw.id,
-    name: raw.name.trim(),
+    name: translateExerciseName(raw.name.trim()),
     slug: slugify(raw.name, raw.id),
     muscle_group: muscleGroup,
-    muscle_subgroup: muscleSubgroup,
+    muscle_subgroup: translateMuscle(raw.target || raw.muscle_group || raw.body_part),
     exercise_type: exerciseType,
     execution_mode: executionMode,
     default_prescription: exerciseType === "cardio" ? "15-20 min" : "3×10-12",
     equipment: mapEquipment(raw.equipment),
     rest_type,
     rest_seconds,
-    instructions,
+    instructions: translateInstructions(instructionsEn),
     demo_gif_url: datasetMediaUrl(raw.gif_url) ?? "",
     image_url: datasetMediaUrl(raw.image) ?? "",
-    body_parts: bodyPart ? [bodyPart] : [],
-    target_muscles: target ? [target] : [],
-    secondary_muscles: secondary,
+    body_parts: bodyPart ? [translateBodyPart(bodyPart)] : [],
+    target_muscles: target ? [translateMuscle(target)] : [],
+    secondary_muscles: secondary.map(translateMuscle),
   };
 }

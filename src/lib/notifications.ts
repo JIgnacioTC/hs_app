@@ -1,10 +1,19 @@
 "use client";
 
+export function isAppInBackground(): boolean {
+  const g = globalThis as typeof globalThis & {
+    document?: { visibilityState?: string };
+  };
+  return g.document?.visibilityState === "hidden";
+}
+
 export interface LocalNotificationOptions {
   body?: string;
   url?: string;
   tag?: string;
   silent?: boolean;
+  /** Mostrar aunque la app esté en primer plano */
+  force?: boolean;
 }
 
 export function canUseNotifications() {
@@ -33,6 +42,7 @@ export async function showLocalNotification(
   options: LocalNotificationOptions = {}
 ): Promise<void> {
   if (!canUseNotifications() || Notification.permission !== "granted") return;
+  if (!options.force && !isAppInBackground()) return;
 
   const payload: NotificationOptions & { vibrate?: number[] } = {
     body: options.body ?? "",

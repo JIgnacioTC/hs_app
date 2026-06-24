@@ -64,15 +64,8 @@ export function SessionRunner({ session, flow, onComplete, onExit }: SessionRunn
   useEffect(() => {
     if (sessionStarted.current) return;
     sessionStarted.current = true;
-    void (async () => {
-      await ensureNotificationPermission();
-      await showLocalNotification("Sesión iniciada", {
-        body: flow.name,
-        tag: "gym-session-start",
-        url: "/gym",
-      });
-    })();
-  }, [flow.name]);
+    void ensureNotificationPermission();
+  }, []);
 
   const formatElapsed = (s: number) => {
     const m = Math.floor(s / 60);
@@ -101,23 +94,11 @@ export function SessionRunner({ session, flow, onComplete, onExit }: SessionRunn
     setMode("work");
     if (setIndex < sets.length - 1) {
       setSetIndex((i) => i + 1);
-      void showLocalNotification("Siguiente serie", {
-        body: `${exercise?.name ?? "Ejercicio"} · Serie ${setIndex + 2}`,
-        tag: "gym-next-set",
-        url: "/gym",
-        silent: true,
-      });
       return;
     }
     if (exerciseIndex < exercises.length - 1) {
-      const nextEx = exercises[exerciseIndex + 1];
       setExerciseIndex((i) => i + 1);
       setSetIndex(0);
-      void showLocalNotification("Siguiente ejercicio", {
-        body: nextEx?.name ?? "Continuar",
-        tag: "gym-next-exercise",
-        url: "/gym",
-      });
       return;
     }
     setFinishing(true);
@@ -127,16 +108,7 @@ export function SessionRunner({ session, flow, onComplete, onExit }: SessionRunn
       url: "/gym",
     });
     setTimeout(() => void onComplete(), 1200);
-  }, [
-    setIndex,
-    sets.length,
-    exerciseIndex,
-    exercises,
-    exercise?.name,
-    flow.name,
-    elapsed,
-    onComplete,
-  ]);
+  }, [setIndex, sets.length, exerciseIndex, exercises.length, flow.name, elapsed, onComplete]);
 
   const advanceWithoutRest = useCallback(() => {
     if (!exercise || !currentSet) return;
