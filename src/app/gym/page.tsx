@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Plus, Sparkles } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/Button";
@@ -16,30 +17,24 @@ import { api } from "@/lib/api-client";
 import type { Flow, FlowDraftStep } from "@/lib/gym/flow";
 import type { GymSession } from "@/lib/types";
 import type { PlannedSet } from "@/lib/gym/sets";
-import { buildCurrentWeekStats } from "@/lib/gym/week-chart";
-import { localDateKey } from "@/lib/utils";
 
 interface ActiveSession {
   session: GymSession;
   flow: Flow;
 }
 
-export default function GymPage() {
+function GymPageInner() {
+  const searchParams = useSearchParams();
   const [tab, setTab] = useState<GymTab>("flows");
   const [flows, setFlows] = useState<Flow[]>([]);
-  const [sessions, setSessions] = useState<GymSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [forging, setForging] = useState(false);
   const [editing, setEditing] = useState<Flow | null>(null);
   const [active, setActive] = useState<ActiveSession | null>(null);
 
   const load = useCallback(async () => {
-    const [r, s] = await Promise.all([
-      api.get<Flow[]>("/api/gym/routines"),
-      api.get<GymSession[]>("/api/gym/sessions"),
-    ]);
+    const r = await api.get<Flow[]>("/api/gym/routines");
     setFlows(r);
-    setSessions(s);
     setLoading(false);
   }, []);
 
@@ -107,6 +102,23 @@ export default function GymPage() {
     await load();
   }
 
+  useEffect(() => {
+    const t = searchParams.get("tab");
+    if (t === "history" || t === "exercises" || t === "flows") {
+      setTab(t);
+    }
+    if (searchParams.get("forge") === "1") {
+      setForging(true);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    const startId = searchParams.get("start");
+    if (!startId || loading || active) return;
+    const flow = flows.find((f) => f.id === startId);
+    if (flow) void startSession(flow);
+  }, [searchParams, loading, flows, active]);
+
   async function startSession(flow: Flow) {
     const data = await api.post<{ session: GymSession; routine: Flow }>(
       "/api/gym/sessions",
@@ -127,14 +139,6 @@ export default function GymPage() {
     await api.patch(`/api/gym/sessions/${active.session.id}`, { status: "abandoned" });
     setActive(null);
   }
-
-  const weekDays = buildCurrentWeekStats(
-    new Set(
-      sessions
-        .filter((s) => s.status === "completed" && s.completed_at)
-        .map((s) => localDateKey(s.completed_at!))
-    )
-  );
 
   if (forging) {
     return <FlowForge onSave={createFlow} onCancel={() => setForging(false)} />;
@@ -178,24 +182,6 @@ export default function GymPage() {
 
       {tab === "flows" && (
         <>
-          <Card className="mb-6 p-4">
-            <p className="grok-label mb-3">Esta semana</p>
-            <div className="flex justify-between gap-2">
-              {weekDays.map(({ done, label, isToday, isFuture }, i) => (
-                <div key={i} className="flex flex-1 flex-col items-center gap-1.5">
-                  <div
-                    className={`h-8 w-full max-w-[2rem] rounded-full transition-colors ${
-                      done ? "bg-accent" : isFuture ? "bg-surface-muted/40" : "bg-surface-muted"
-                    } ${isToday ? "ring-1 ring-accent/40" : ""}`}
-                  />
-                  <span className={`text-[10px] ${isToday ? "text-accent" : "text-muted"}`}>
-                    {label}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </Card>
-
           <div className="mb-4 flex items-center justify-between">
             <p className="grok-label">Tus flujos</p>
             <Button size="sm" onClick={() => setForging(true)} className="gap-1">
@@ -240,5 +226,13 @@ export default function GymPage() {
 
       {tab === "exercises" && <ExerciseBrowser />}
     </AppShell>
+  );
+}
+
+export default function GymPage() {
+  return (
+    <Suspense fallback={null}>
+      <GymPageInner />
+    </Suspense>
   );
 }

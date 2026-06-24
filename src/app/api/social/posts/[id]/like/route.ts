@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/utils/supabase/server";
 import { requireAuth } from "@/lib/api-helpers";
+import { getDisplayName, notifyUserPush } from "@/lib/social/push-notify";
 
 export async function POST(
   _request: Request,
@@ -11,6 +12,12 @@ export async function POST(
 
   const { id: postId } = await params;
   const supabase = await getSupabaseServerClient();
+
+  const { data: post } = await supabase
+    .from("workout_posts")
+    .select("user_id, routine_name")
+    .eq("id", postId)
+    .maybeSingle();
 
   const { data: existing } = await supabase
     .from("workout_post_likes")
@@ -31,6 +38,15 @@ export async function POST(
 
   if (insertError) {
     return NextResponse.json({ error: insertError.message }, { status: 500 });
+  }
+
+  if (post && post.user_id !== user!.id) {
+    const likerName = await getDisplayName(user!.id);
+    void notifyUserPush(post.user_id, {
+      title: "Nuevo me gusta",
+      body: `A ${likerName} le gustó tu rutina «${post.routine_name}»`,
+      url: "/social",
+    });
   }
 
   return NextResponse.json({ liked: true });

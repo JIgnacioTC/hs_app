@@ -1,13 +1,13 @@
 {
-  "name": "HS — Hábitos",
+  "name": "HS — Entrenamiento",
   "short_name": "HS",
-  "description": "Trackeo de hábitos y rutinas de gym",
+  "description": "Rutinas de gym, progreso y comunidad",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#0C0C0E",
   "theme_color": "#0C0C0E",
-  "categories": ["health", "fitness", "lifestyle"],
+  "categories": ["health", "fitness", "sports"],
   "icons": [
     {
       "src": "/icons/icon-192.png",

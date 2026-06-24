@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/utils/supabase/server";
 import { requireAuth, jsonError } from "@/lib/api-helpers";
+import { getDisplayName, notifyUserPush } from "@/lib/social/push-notify";
 
 export async function POST(
   request: Request,
@@ -15,6 +16,13 @@ export async function POST(
   if (!text) return jsonError("Comentario vacío");
 
   const supabase = await getSupabaseServerClient();
+
+  const { data: post } = await supabase
+    .from("workout_posts")
+    .select("user_id, routine_name")
+    .eq("id", postId)
+    .maybeSingle();
+
   const { data, error: dbError } = await supabase
     .from("workout_post_comments")
     .insert({
@@ -35,8 +43,18 @@ export async function POST(
     .eq("id", user!.id)
     .single();
 
+  const authorName = profile?.display_name ?? "Usuario";
+
+  if (post && post.user_id !== user!.id) {
+    void notifyUserPush(post.user_id, {
+      title: "Nuevo comentario",
+      body: `${authorName} comentó en «${post.routine_name}»: ${text.slice(0, 80)}`,
+      url: "/social",
+    });
+  }
+
   return NextResponse.json({
     ...data,
-    author_name: profile?.display_name ?? "Usuario",
+    author_name: authorName,
   });
 }

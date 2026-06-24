@@ -153,7 +153,7 @@ export default function SettingsPage() {
               </Button>
             </Card>
             <p className="mt-2 text-xs text-muted">
-              Los recordatorios por hábito se configuran en cada tarjeta de hábito.
+              Alertas de rutinas compartidas, likes y comentarios en tus entrenamientos.
             </p>
             {pushError && <p className="mt-2 text-xs text-danger">{pushError}</p>}
           </section>

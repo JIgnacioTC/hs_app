@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "HS",
-  description: "Hábitos y rutinas de gym — minimalista",
+  description: "Entrenamiento, rutinas y comunidad fitness",
   applicationName: "HS",
   appleWebApp: {
     capable: true,

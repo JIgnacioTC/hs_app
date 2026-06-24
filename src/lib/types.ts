@@ -189,6 +189,17 @@ export interface CreateHabitPayload {
   habit_kind?: HabitKind;
 }
 
+export interface RoutineShare {
+  id: string;
+  from_user_id: string;
+  to_user_id: string;
+  source_routine_id: string;
+  copied_routine_id: string;
+  routine_name: string;
+  created_at: string;
+  peer_name: string;
+}
+
 export interface FriendProfile {
   id: string;
   display_name: string;

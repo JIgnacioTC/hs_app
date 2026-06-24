@@ -1,16 +1,28 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { FriendsPanel } from "@/components/social/FriendsPanel";
+import { RoutineSharesPanel } from "@/components/social/RoutineSharesPanel";
 import { SocialTabs, type SocialTab } from "@/components/social/SocialTabs";
 import { WorkoutFeed } from "@/components/social/WorkoutFeed";
 
 function SocialPageContent() {
   const searchParams = useSearchParams();
   const addUserId = searchParams.get("add");
-  const [tab, setTab] = useState<SocialTab>(addUserId ? "friends" : "feed");
+  const tabParam = searchParams.get("tab");
+  const [tab, setTab] = useState<SocialTab>("feed");
+
+  useEffect(() => {
+    if (addUserId) {
+      setTab("friends");
+      return;
+    }
+    if (tabParam === "routines" || tabParam === "friends" || tabParam === "feed") {
+      setTab(tabParam);
+    }
+  }, [addUserId, tabParam]);
 
   return (
     <AppShell>
@@ -24,7 +36,9 @@ function SocialPageContent() {
 
       <SocialTabs active={tab} onChange={setTab} />
 
-      {tab === "feed" ? <WorkoutFeed /> : <FriendsPanel addUserId={addUserId} />}
+      {tab === "feed" && <WorkoutFeed />}
+      {tab === "routines" && <RoutineSharesPanel />}
+      {tab === "friends" && <FriendsPanel addUserId={addUserId} />}
     </AppShell>
   );
 }

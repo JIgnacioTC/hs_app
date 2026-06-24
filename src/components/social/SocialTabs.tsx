@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils";
 
-export type SocialTab = "feed" | "friends";
+export type SocialTab = "feed" | "routines" | "friends";
 
 export function SocialTabs({
   active,
@@ -13,6 +13,7 @@ export function SocialTabs({
 }) {
   const tabs: { id: SocialTab; label: string }[] = [
     { id: "feed", label: "Actividad" },
+    { id: "routines", label: "Rutinas" },
     { id: "friends", label: "Amigos" },
   ];
 
