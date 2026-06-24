@@ -36,7 +36,7 @@ export async function createWorkoutPostForSession(
     (session.gym_routines as { name?: string } | null)?.name ?? "Rutina";
 
   const { data: existing } = await supabase
-    .from("workout_posts")
+    .from("social_posts")
     .select("id")
     .eq("session_id", sessionId)
     .maybeSingle();
@@ -44,9 +44,10 @@ export async function createWorkoutPostForSession(
   if (existing) return existing;
 
   const { data, error } = await supabase
-    .from("workout_posts")
+    .from("social_posts")
     .insert({
       user_id: userId,
+      kind: "workout",
       session_id: sessionId,
       routine_name: routineName,
       duration_seconds: durationSeconds,

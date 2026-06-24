@@ -205,25 +205,27 @@ export interface FriendProfile {
   display_name: string;
 }
 
-export interface WorkoutPostComment {
-  id: string;
-  body: string;
-  created_at: string;
-  user_id: string;
-  author_name: string;
-}
-
-export interface WorkoutPost {
+export interface SocialPost {
   id: string;
   user_id: string;
-  session_id: string;
-  routine_name: string;
+  kind: "post" | "workout" | "reply";
+  body: string | null;
+  parent_id: string | null;
+  root_id: string | null;
+  session_id: string | null;
+  routine_name: string | null;
   duration_seconds: number | null;
-  exercise_count: number;
-  set_count: number;
+  exercise_count: number | null;
+  set_count: number | null;
+  image_url: string | null;
   created_at: string;
   author_name: string;
   like_count: number;
   liked_by_me: boolean;
-  comments: WorkoutPostComment[];
+  reply_count: number;
+}
+
+export interface SocialThread {
+  post: SocialPost;
+  replies: SocialPost[];
 }

@@ -6,7 +6,7 @@ import { AppShell } from "@/components/AppShell";
 import { FriendsPanel } from "@/components/social/FriendsPanel";
 import { RoutineSharesPanel } from "@/components/social/RoutineSharesPanel";
 import { SocialTabs, type SocialTab } from "@/components/social/SocialTabs";
-import { WorkoutFeed } from "@/components/social/WorkoutFeed";
+import { SocialFeed } from "@/components/social/SocialFeed";
 
 function SocialPageContent() {
   const searchParams = useSearchParams();
@@ -30,13 +30,13 @@ function SocialPageContent() {
         <p className="grok-label">Comunidad</p>
         <h1 className="text-2xl font-semibold tracking-tight">Social</h1>
         <p className="mt-1 text-sm text-secondary">
-          Actividad de entrenamiento y amigos
+          Publicaciones, rutinas y amigos
         </p>
       </header>
 
       <SocialTabs active={tab} onChange={setTab} />
 
-      {tab === "feed" && <WorkoutFeed />}
+      {tab === "feed" && <SocialFeed />}
       {tab === "routines" && <RoutineSharesPanel />}
       {tab === "friends" && <FriendsPanel addUserId={addUserId} />}
     </AppShell>
