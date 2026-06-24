@@ -93,3 +93,74 @@ export async function savePlannedSetsForExercise(
   const legacy = syncLegacyExerciseFields(sets);
   await supabase.from("gym_exercises").update(legacy).eq("id", gymExerciseId).eq("user_id", userId);
 }
+
+export async function swapExerciseCatalog(
+  supabase: SupabaseClient,
+  userId: string,
+  gymExerciseId: string,
+  catalog: ExerciseCatalog,
+  options?: { preserveSets?: boolean }
+) {
+  const preserveSets = options?.preserveSets ?? true;
+
+  const { data: existing, error: fetchError } = await supabase
+    .from("gym_exercises")
+    .select("id, routine_id, gym_planned_sets(*)")
+    .eq("id", gymExerciseId)
+    .eq("user_id", userId)
+    .single();
+
+  if (fetchError || !existing) {
+    throw new Error("Ejercicio no encontrado");
+  }
+
+  const { data: duplicate } = await supabase
+    .from("gym_exercises")
+    .select("id")
+    .eq("routine_id", existing.routine_id)
+    .eq("exercise_catalog_id", catalog.id)
+    .neq("id", gymExerciseId)
+    .maybeSingle();
+
+  if (duplicate) {
+    throw new Error("Ese ejercicio ya está en la rutina");
+  }
+
+  const enriched = withExerciseMedia(catalog);
+  const currentSets = (existing.gym_planned_sets ?? []) as PlannedSet[];
+  const nextSets = preserveSets && currentSets.length
+    ? currentSets.map((set, index) => ({
+        ...set,
+        set_number: index + 1,
+        rest_seconds: set.rest_seconds || enriched.rest_seconds || 60,
+      }))
+    : defaultPlannedSets(enriched);
+
+  const legacy = syncLegacyExerciseFields(nextSets);
+
+  const { data: updated, error: updateError } = await supabase
+    .from("gym_exercises")
+    .update({
+      exercise_catalog_id: catalog.id,
+      name: catalog.name,
+      ...legacy,
+    })
+    .eq("id", gymExerciseId)
+    .eq("user_id", userId)
+    .select("*, exercise_catalog(*), gym_planned_sets(*)")
+    .single();
+
+  if (updateError || !updated) {
+    throw new Error(updateError?.message ?? "No se pudo sustituir el ejercicio");
+  }
+
+  await savePlannedSetsForExercise(supabase, userId, gymExerciseId, nextSets);
+
+  const { data: withSets } = await supabase
+    .from("gym_exercises")
+    .select("*, exercise_catalog(*), gym_planned_sets(*)")
+    .eq("id", gymExerciseId)
+    .single();
+
+  return withNestedExerciseMedia(withSets!);
+}

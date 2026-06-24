@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowDown, ArrowLeft, ArrowUp, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Input } from "@/components/ui/Input";
+import { ExerciseAlternativesSheet } from "@/components/gym/ExerciseAlternativesSheet";
 import { ExercisePicker } from "@/components/gym/ExercisePicker";
 import { SetPlanEditor } from "@/components/gym/SetPlanEditor";
 import { FlowChainVertical } from "@/components/gym/FlowThread";
@@ -20,6 +21,7 @@ interface FlowEditorProps {
   onUpdateSets: (exerciseId: string, sets: PlannedSet[]) => Promise<void>;
   onUpdateFlow: (patch: { name?: string; description?: string }) => Promise<void>;
   onReorder: (exerciseId: string, sortOrder: number) => Promise<void>;
+  onSwapStep: (exerciseId: string, catalogId: string) => Promise<void>;
   onRemoveStep: (id: string) => Promise<void>;
   onDeleteFlow: () => Promise<void>;
   onClose: () => void;
@@ -31,6 +33,7 @@ export function FlowEditor({
   onUpdateSets,
   onUpdateFlow,
   onReorder,
+  onSwapStep,
   onRemoveStep,
   onDeleteFlow,
   onClose,
@@ -43,6 +46,7 @@ export function FlowEditor({
   const [mood, setMood] = useState(flow.description ?? "pulse");
   const [confirmDeleteFlow, setConfirmDeleteFlow] = useState(false);
   const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
+  const [swapExerciseId, setSwapExerciseId] = useState<string | null>(null);
 
   const exercises = stepsOf(flow);
   const steps = exercises.map((s) => ({
@@ -97,6 +101,10 @@ export function FlowEditor({
     ? exercises.find((e) => e.id === editExerciseId)
     : null;
 
+  const swappingExercise = swapExerciseId
+    ? exercises.find((e) => e.id === swapExerciseId)
+    : null;
+
   return (
     <>
       {pickerOpen && (
@@ -107,6 +115,24 @@ export function FlowEditor({
             setPickerOpen(false);
           }}
           onClose={() => setPickerOpen(false)}
+        />
+      )}
+
+      {swappingExercise?.exercise_catalog_id && (
+        <ExerciseAlternativesSheet
+          catalogId={swappingExercise.exercise_catalog_id}
+          exerciseName={swappingExercise.name}
+          excludeIds={existingCatalogIds}
+          onClose={() => setSwapExerciseId(null)}
+          onSelect={async (catalog) => {
+            setLoading(true);
+            try {
+              await onSwapStep(swappingExercise.id, catalog.id);
+            } finally {
+              setLoading(false);
+              setSwapExerciseId(null);
+            }
+          }}
         />
       )}
 
@@ -211,6 +237,15 @@ export function FlowEditor({
                   className="flex-1 text-left text-xs text-accent-soft underline disabled:opacity-40"
                 >
                   Series · {ex.name}
+                </button>
+                <button
+                  type="button"
+                  disabled={loading || !ex.exercise_catalog_id}
+                  onClick={() => setSwapExerciseId(ex.id)}
+                  className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-2 text-[10px] text-secondary active:scale-[0.98] disabled:opacity-40"
+                >
+                  <RefreshCw size={12} />
+                  Alternativa
                 </button>
               </div>
             ))}

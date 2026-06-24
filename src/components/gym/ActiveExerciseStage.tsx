@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, CheckCheck, LayoutGrid, SkipForward, X } from "lucide-react";
+import { Check, CheckCheck, LayoutGrid, RefreshCw, SkipForward, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { ExerciseMedia } from "@/components/gym/ExerciseMedia";
 import { FlowThread } from "@/components/gym/FlowThread";
@@ -22,6 +22,7 @@ interface ActiveExerciseStageProps {
   elapsedLabel: string;
   onExit: () => void;
   onOpenSwitcher: () => void;
+  onOpenAlternatives?: () => void;
   onUpdateSet: (patch: Partial<PlannedSet>) => void;
   onCompleteSet: () => void;
   onCompleteExercise: () => void;
@@ -44,6 +45,7 @@ export function ActiveExerciseStage({
   elapsedLabel,
   onExit,
   onOpenSwitcher,
+  onOpenAlternatives,
   onUpdateSet,
   onCompleteSet,
   onCompleteExercise,
@@ -201,7 +203,19 @@ export function ActiveExerciseStage({
         </div>
       </div>
 
-      <footer className="shrink-0 grid grid-cols-2 gap-2 border-t border-border px-4 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+      <footer className="shrink-0 grid grid-cols-[auto_1fr_1fr] gap-2 border-t border-border px-4 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+        {onOpenAlternatives ? (
+          <Button
+            variant="outline"
+            className="h-11 px-3"
+            onClick={onOpenAlternatives}
+            aria-label="Buscar alternativa"
+          >
+            <RefreshCw size={16} />
+          </Button>
+        ) : (
+          <div />
+        )}
         <Button variant="outline" className="h-11 gap-1.5" onClick={onSkipSet}>
           <SkipForward size={16} />
           Omitir
