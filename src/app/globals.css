@@ -16,6 +16,10 @@
   --success: #9caf88;
   --warning: #c4a574;
   --danger: #b87a7a;
+  --chart-line: #3ecfd9;
+  --chart-grid: rgba(255, 255, 255, 0.05);
+  --chart-surface: #0a0a0c;
+  --chart-fill: rgba(62, 207, 217, 0.12);
 }
 
 @theme inline {
@@ -32,6 +36,9 @@
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-danger: var(--danger);
+  --color-chart-line: var(--chart-line);
+  --color-chart-grid: var(--chart-grid);
+  --color-chart-surface: var(--chart-surface);
   --font-sans: var(--font-inter);
   --font-mono: var(--font-geist-mono);
 }

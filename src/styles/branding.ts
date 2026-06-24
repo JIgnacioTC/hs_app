@@ -22,6 +22,12 @@ export const brand = {
       warning: "#C4A574",
       danger: "#B87A7A",
     },
+    chart: {
+      line: "#3ECFD9",
+      grid: "rgba(255, 255, 255, 0.05)",
+      surface: "#0A0A0C",
+      fill: "rgba(62, 207, 217, 0.12)",
+    },
     border: {
       subtle: "rgba(255, 255, 255, 0.06)",
       default: "rgba(255, 255, 255, 0.10)",
