@@ -55,3 +55,41 @@ export function parseFriendIdFromQr(text: string): string | null {
   );
   return uuidMatch?.[0] ?? null;
 }
+
+export function stopMediaStream(stream: MediaStream | null | undefined) {
+  if (!stream) return;
+  const s = stream as MediaStream & { getTracks?: () => Array<{ stop: () => void }> };
+  s.getTracks?.().forEach((t) => t.stop());
+}
+
+export async function requestCameraStream(): Promise<MediaStream> {
+  const nav = globalThis.navigator as typeof globalThis.navigator & {
+    mediaDevices?: {
+      getUserMedia: (c: unknown) => Promise<MediaStream>;
+    };
+  };
+  const media = nav?.mediaDevices;
+  if (!media?.getUserMedia) {
+    throw new Error("Cámara no disponible en este navegador");
+  }
+
+  try {
+    return await media.getUserMedia({
+      audio: false,
+      video: {
+        facingMode: { ideal: "environment" },
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+      },
+    });
+  } catch {
+    return await media.getUserMedia({
+      audio: false,
+      video: {
+        facingMode: "user",
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+      },
+    });
+  }
+}

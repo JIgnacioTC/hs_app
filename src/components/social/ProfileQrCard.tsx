@@ -5,9 +5,9 @@ import QRCode from "qrcode";
 import { QrCode, ScanLine, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { QrScannerModal } from "@/components/social/QrScannerModal";
+import { QrScannerModal, openQrScannerWithCamera } from "@/components/social/QrScannerModal";
 import { api } from "@/lib/api-client";
-import { friendAddUrl } from "@/lib/social/friends";
+import { friendAddUrl, stopMediaStream } from "@/lib/social/friends";
 import type { FriendProfile, Profile } from "@/lib/types";
 
 interface ProfileQrCardProps {
@@ -19,6 +19,7 @@ interface ProfileQrCardProps {
 export function ProfileQrCard({ profile, friends, onFriendAdded }: ProfileQrCardProps) {
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
 
@@ -27,9 +28,10 @@ export function ProfileQrCard({ profile, friends, onFriendAdded }: ProfileQrCard
     if (!origin) return;
     const url = friendAddUrl(origin, profile.id);
     void QRCode.toDataURL(url, {
-      width: 220,
-      margin: 1,
-      color: { dark: "#ffffff", light: "#00000000" },
+      width: 280,
+      margin: 2,
+      errorCorrectionLevel: "M",
+      color: { dark: "#000000", light: "#ffffff" },
     }).then(setQrDataUrl);
   }, [profile.id]);
 
@@ -68,7 +70,7 @@ export function ProfileQrCard({ profile, friends, onFriendAdded }: ProfileQrCard
             <img
               src={qrDataUrl}
               alt="QR para añadir amigo"
-              className="rounded-2xl border border-border bg-surface p-3"
+              className="rounded-2xl border border-border bg-white p-3"
             />
           ) : (
             <div className="flex h-[220px] w-[220px] items-center justify-center rounded-2xl border border-border bg-surface-muted">
@@ -80,7 +82,14 @@ export function ProfileQrCard({ profile, friends, onFriendAdded }: ProfileQrCard
         <Button
           className="mt-4 w-full gap-2"
           variant="outline"
-          onClick={() => setScannerOpen(true)}
+          onClick={() => {
+            void (async () => {
+              setMessage(null);
+              const stream = await openQrScannerWithCamera();
+              setCameraStream(stream);
+              setScannerOpen(true);
+            })();
+          }}
           disabled={adding}
         >
           <ScanLine size={16} />
@@ -115,7 +124,12 @@ export function ProfileQrCard({ profile, friends, onFriendAdded }: ProfileQrCard
 
       <QrScannerModal
         open={scannerOpen}
-        onClose={() => setScannerOpen(false)}
+        initialStream={cameraStream}
+        onClose={() => {
+          setScannerOpen(false);
+          stopMediaStream(cameraStream);
+          setCameraStream(null);
+        }}
         onScan={(friendId) => void addFriend(friendId)}
       />
     </>
