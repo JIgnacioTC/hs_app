@@ -1,14 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { Bell, BellOff, LogOut, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Input, Label, Textarea } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
 import { AdminExerciseGifUploadPanel } from "@/components/settings/AdminExerciseGifUploadPanel";
 import { AdminExerciseImportPanel } from "@/components/settings/AdminExerciseImportPanel";
+import { FitnessProfilePanel } from "@/components/settings/FitnessProfilePanel";
 import { SettingsTabs, type SettingsTab } from "@/components/settings/SettingsTabs";
 import { SettingsSkeleton } from "@/components/ui/Skeleton";
 import { useStaleQuery } from "@/hooks/useStaleQuery";
@@ -18,7 +19,16 @@ import { CRON_PRESETS, describeCron } from "@/lib/cron";
 import { cn } from "@/lib/utils";
 
 export default function SettingsPage() {
+  return (
+    <Suspense fallback={<SettingsSkeleton />}>
+      <SettingsPageInner />
+    </Suspense>
+  );
+}
+
+function SettingsPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [tab, setTab] = useState<SettingsTab>("general");
   const [isAdmin, setIsAdmin] = useState(false);
   const { data: profile, loading: loadingProfile } = useStaleQuery<Profile>("/api/profile");
@@ -51,10 +61,19 @@ export default function SettingsPage() {
   }, [load]);
 
   useEffect(() => {
+    const requested = searchParams.get("tab");
+    if (requested === "profile" || requested === "general" || requested === "admin") {
+      setTab(requested);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
     if (!isAdmin && tab === "admin") {
       setTab("general");
     }
   }, [isAdmin, tab]);
+
+  const showProfileTab = tab === "profile";
 
   async function togglePush() {
     setPushError(null);
@@ -137,6 +156,8 @@ export default function SettingsPage() {
           <AdminExerciseGifUploadPanel />
           <AdminExerciseImportPanel />
         </div>
+      ) : showProfileTab ? (
+        <FitnessProfilePanel />
       ) : (
         <>
           <section className="mb-8">
