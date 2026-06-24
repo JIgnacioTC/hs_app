@@ -34,6 +34,16 @@ const profileApiCache = new StaleWhileRevalidate({
   ],
 });
 
+const socialApiCache = new StaleWhileRevalidate({
+  cacheName: "hs-social-api",
+  plugins: [
+    new ExpirationPlugin({
+      maxEntries: 16,
+      maxAgeSeconds: 60 * 5,
+    }),
+  ],
+});
+
 const serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST,
   skipWaiting: true,
@@ -52,6 +62,11 @@ const serwist = new Serwist({
       matcher: ({ request, url }) =>
         request.method === "GET" && url.pathname.startsWith("/api/profile"),
       handler: profileApiCache,
+    },
+    {
+      matcher: ({ request, url }) =>
+        request.method === "GET" && url.pathname.startsWith("/api/social"),
+      handler: socialApiCache,
     },
     ...defaultCache,
   ],

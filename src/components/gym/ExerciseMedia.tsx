@@ -66,6 +66,8 @@ interface ExerciseMediaProps {
   session?: boolean;
   /** Legacy wide 16:9 layout */
   wide?: boolean;
+  /** Eager load for above-the-fold media */
+  priority?: boolean;
 }
 
 export function ExerciseMedia({
@@ -74,6 +76,7 @@ export function ExerciseMedia({
   compact = false,
   session = false,
   wide = false,
+  priority = false,
 }: ExerciseMediaProps) {
   const candidates = useMemo(() => buildMediaCandidates(exercise, false), [exercise]);
   const { url, loaded, onError, onLoad } = useMediaWithFallback(candidates);
@@ -110,24 +113,18 @@ export function ExerciseMedia({
           className
         )}
       >
-        {!loaded && (
-          <div
-            className={cn(
-              "absolute inset-0 animate-pulse bg-surface-muted",
-              square ? "aspect-square" : "aspect-video"
-            )}
-          />
-        )}
+        {!loaded && <div className="absolute inset-0 skeleton-shimmer" />}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={url}
           alt={session ? "" : `Demo de ${exercise.name}`}
           className={cn(
-            "w-full object-cover transition-opacity duration-200",
+            "w-full object-cover transition-opacity duration-300 ease-out",
             square ? "aspect-square" : "aspect-video",
             loaded ? "opacity-100" : "opacity-0"
           )}
-          loading="lazy"
+          loading={priority ? "eager" : "lazy"}
+          fetchPriority={priority ? "high" : "auto"}
           decoding="async"
           onLoad={onLoad}
           onError={onError}
@@ -161,9 +158,11 @@ export function ExerciseMedia({
 export function ExerciseMediaThumb({
   exercise,
   className = "",
+  priority = false,
 }: {
   exercise: Pick<ExerciseCatalog, "name" | "demo_gif_url" | "image_url" | "image_urls">;
   className?: string;
+  priority?: boolean;
 }) {
   const candidates = useMemo(() => buildMediaCandidates(exercise, true), [exercise]);
   const { url, loaded, onError, onLoad } = useMediaWithFallback(candidates);
@@ -183,16 +182,17 @@ export function ExerciseMediaThumb({
 
   return (
     <div className={cn("relative shrink-0 overflow-hidden rounded-2xl border border-border", className)}>
-      {!loaded && <div className="absolute inset-0 animate-pulse bg-surface-muted" />}
+      {!loaded && <div className="absolute inset-0 skeleton-shimmer" />}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={url}
         alt=""
         className={cn(
-          "aspect-square h-full w-full object-cover transition-opacity duration-200",
+          "aspect-square h-full w-full object-cover transition-opacity duration-300 ease-out",
           loaded ? "opacity-100" : "opacity-0"
         )}
-        loading="lazy"
+        loading={priority ? "eager" : "lazy"}
+        fetchPriority={priority ? "high" : "auto"}
         decoding="async"
         onLoad={onLoad}
         onError={onError}
