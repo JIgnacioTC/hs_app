@@ -1,14 +1,17 @@
-/** Fallback CDN (hasaneyldrm/exercises-dataset). */
+/** Primary CDN (hasaneyldrm/exercises-dataset via jsDelivr). */
 export const DATASET_CDN_BASE =
   "https://cdn.jsdelivr.net/gh/hasaneyldrm/exercises-dataset@main";
 
-export type ExerciseMediaProvider = "supabase" | "cdn" | "auto";
+/** Secondary CDN fallback when jsDelivr is slow or unavailable. */
+export const DATASET_GITHUB_RAW_BASE =
+  "https://raw.githubusercontent.com/hasaneyldrm/exercises-dataset/main";
 
+export type ExerciseMediaProvider = "supabase" | "cdn";
+
+/** Images default to CDN; set NEXT_PUBLIC_EXERCISE_MEDIA_PROVIDER=supabase to use Storage. */
 export function getExerciseMediaProvider(): ExerciseMediaProvider {
   const configured = process.env.NEXT_PUBLIC_EXERCISE_MEDIA_PROVIDER;
-  if (configured === "cdn") return "cdn";
   if (configured === "supabase") return "supabase";
-  if (process.env.NEXT_PUBLIC_SUPABASE_URL) return "supabase";
   return "cdn";
 }
 
@@ -70,20 +73,30 @@ export function resolveDatasetStoragePath(relativePath: string): {
 }
 
 export function datasetMediaUrl(relativePath: string | null | undefined): string | null {
-  if (!relativePath?.trim()) return null;
+  const urls = datasetMediaUrls(relativePath);
+  return urls[0] ?? null;
+}
+
+/** Ordered candidates: optional Supabase, then jsDelivr, then GitHub raw. */
+export function datasetMediaUrls(relativePath: string | null | undefined): string[] {
+  if (!relativePath?.trim()) return [];
 
   const path = relativePath.replace(/^\//, "");
   const provider = providerForPath(path);
+  const urls: string[] = [];
 
   if (provider === "supabase") {
     const resolved = resolveDatasetStoragePath(relativePath);
     if (resolved) {
       const url = supabaseStoragePublicUrl(resolved.bucket, resolved.key);
-      if (url) return url;
+      if (url) urls.push(url);
     }
   }
 
-  return `${DATASET_CDN_BASE}/${path}`;
+  urls.push(`${DATASET_CDN_BASE}/${path}`);
+  urls.push(`${DATASET_GITHUB_RAW_BASE}/${path}`);
+
+  return [...new Set(urls)];
 }
 
 export function isSupabaseStorageUrl(url: string | null | undefined): boolean {
