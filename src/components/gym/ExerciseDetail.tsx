@@ -107,17 +107,15 @@ export function ExerciseDetail({ exercise, onClose }: ExerciseDetailProps) {
           <p className="grok-label mb-4">Tu historial</p>
           {loadingHistory ? (
             <div className="space-y-3">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="h-24 animate-pulse rounded-2xl bg-surface-muted" />
-              ))}
+              <div className="grid grid-cols-2 gap-2">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="h-20 animate-pulse rounded-[20px] bg-surface-muted" />
+                ))}
+              </div>
+              <div className="h-52 animate-pulse rounded-[20px] bg-surface-muted" />
             </div>
-          ) : history && history.points.length > 0 ? (
-            <>
-              <p className="mb-4 text-sm text-muted">
-                {history.total_sessions} sesiones · {history.points.length} días registrados
-              </p>
-              <HistoryCharts history={history} />
-            </>
+          ) : history ? (
+            <HistoryCharts history={history} />
           ) : (
             <Card className="p-6 text-center">
               <p className="text-sm text-muted">
