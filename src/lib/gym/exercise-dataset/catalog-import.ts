@@ -215,14 +215,27 @@ export function getDatasetExerciseRaw(id: string) {
 
 export function enrichExerciseCatalogMedia<
   T extends {
+    slug?: string;
+    muscle_group?: string;
     dataset_id?: string | null;
     demo_gif_url?: string | null;
     image_url?: string | null;
   },
 >(exercise: T): T {
-  if (!exercise.dataset_id) return exercise;
+  let raw = exercise.dataset_id ? getDatasetExerciseById(exercise.dataset_id) : null;
 
-  const raw = getDatasetExerciseById(exercise.dataset_id);
+  if (!raw && exercise.slug) {
+    const resolved = resolveCatalogExercise(exercise.slug, exercise.muscle_group);
+    if (resolved) {
+      return {
+        ...exercise,
+        dataset_id: exercise.dataset_id ?? resolved.dataset_id,
+        demo_gif_url: resolved.demo_gif_url || exercise.demo_gif_url,
+        image_url: resolved.image_url || exercise.image_url,
+      };
+    }
+  }
+
   if (!raw) return exercise;
 
   const demo = datasetMediaUrl(raw.gif_url);

@@ -172,10 +172,9 @@ export function AdminExerciseImportPanel() {
       <div>
         <p className="grok-label mb-1">Catálogo de ejercicios</p>
         <p className="text-sm text-secondary">
-          Dataset local (1.324 ejercicios). Las imágenes y GIFs se sirven desde tu bucket{" "}
-          <code className="text-accent-soft">images</code> en Supabase cuando{" "}
-          <code className="text-accent-soft">NEXT_PUBLIC_SUPABASE_URL</code> está configurado.
-          Enriquece los curados en español e importa el resto del catálogo.
+          Dataset local (1.324 ejercicios). Los GIFs se sirven solo desde Cloudflare R2; las
+          imágenes estáticas usan CDN. Enriquece los curados en español e importa el resto del
+          catálogo.
         </p>
       </div>
 
@@ -262,7 +261,7 @@ export function AdminExerciseImportPanel() {
           onClick={refreshMediaUrls}
           disabled={importing || loadingStats}
         >
-          Refrescar URLs desde Supabase Storage
+          Refrescar URLs de media en catálogo
         </Button>
 
         {error && <p className="text-sm text-danger">{error}</p>}

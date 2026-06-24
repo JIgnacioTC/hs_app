@@ -33,6 +33,28 @@ En **Vercel → Project → Settings → Environment Variables**, añade estas p
 | `VAPID_SUBJECT` | `mailto:tu@email.com` (contacto del emisor push) |
 | `CRON_SECRET` | Secreto aleatorio ≥16 caracteres |
 
+### GIFs de ejercicios (Cloudflare R2, opcional)
+
+Para servir los GIFs del catálogo desde tu bucket R2 en lugar del CDN público:
+
+| Variable | Dónde | Descripción |
+|----------|-------|-------------|
+| `R2_ENDPOINT` | Solo servidor | `https://<ACCOUNT_ID>.r2.cloudflarestorage.com` |
+| `R2_ACCESS_KEY_ID` | Solo servidor | Access Key ID de la API token de R2 |
+| `R2_SECRET_ACCESS_KEY` | Solo servidor | Secret Access Key de R2 |
+| `R2_BUCKET_NAME` | Solo servidor | Nombre del bucket (por defecto `hs-gifs`) |
+| `NEXT_PUBLIC_R2_GIF_PUBLIC_URL` | Cliente + servidor | URL pública del bucket (dominio r2.dev o custom domain, sin `/` final) |
+
+Opcional: `NEXT_PUBLIC_EXERCISE_GIF_PROVIDER=r2` fuerza R2 aunque no detecte la URL pública.
+
+Sube los GIFs desde **Ajustes → Admin** en la app (subida masiva con URLs prefirmadas).
+
+### Auth (registro sin verificación de correo)
+
+El signup usa `SUPABASE_SERVICE_ROLE_KEY` para crear usuarios con `email_confirm: true` y entrar al instante.
+
+Si no tienes service role en Preview, desactiva **Confirm email** en Supabase → Authentication → Providers → Email.
+
 ### Generar claves VAPID
 
 En local:

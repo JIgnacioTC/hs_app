@@ -4,7 +4,7 @@
 
 import { defaultCache } from "@serwist/next/worker";
 import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
-import { Serwist } from "serwist";
+import { ExpirationPlugin, Serwist, StaleWhileRevalidate } from "serwist";
 
 declare global {
   interface WorkerGlobalScope extends SerwistGlobalConfig {
@@ -14,12 +14,62 @@ declare global {
 
 declare const self: ServiceWorkerGlobalScope;
 
+const gymApiCache = new StaleWhileRevalidate({
+  cacheName: "hs-gym-api",
+  plugins: [
+    new ExpirationPlugin({
+      maxEntries: 32,
+      maxAgeSeconds: 60 * 10,
+    }),
+  ],
+});
+
+const profileApiCache = new StaleWhileRevalidate({
+  cacheName: "hs-profile-api",
+  plugins: [
+    new ExpirationPlugin({
+      maxEntries: 8,
+      maxAgeSeconds: 60 * 5,
+    }),
+  ],
+});
+
+const socialApiCache = new StaleWhileRevalidate({
+  cacheName: "hs-social-api",
+  plugins: [
+    new ExpirationPlugin({
+      maxEntries: 16,
+      maxAgeSeconds: 60 * 5,
+    }),
+  ],
+});
+
 const serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST,
   skipWaiting: true,
   clientsClaim: true,
   navigationPreload: true,
-  runtimeCaching: defaultCache,
+  runtimeCaching: [
+    {
+      matcher: ({ request, url }) =>
+        request.method === "GET" &&
+        (url.pathname.startsWith("/api/gym/routines") ||
+          url.pathname.startsWith("/api/gym/sessions") ||
+          url.pathname.startsWith("/api/gym/catalog")),
+      handler: gymApiCache,
+    },
+    {
+      matcher: ({ request, url }) =>
+        request.method === "GET" && url.pathname.startsWith("/api/profile"),
+      handler: profileApiCache,
+    },
+    {
+      matcher: ({ request, url }) =>
+        request.method === "GET" && url.pathname.startsWith("/api/social"),
+      handler: socialApiCache,
+    },
+    ...defaultCache,
+  ],
 });
 
 self.addEventListener("push", (event) => {

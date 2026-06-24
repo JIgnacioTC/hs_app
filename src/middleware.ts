@@ -3,6 +3,7 @@ import { createClient } from "@/utils/supabase/middleware";
 
 const publicRoutes = ["/auth/login", "/auth/register"];
 const publicApiRoutes = ["/api/auth/login", "/api/auth/signup"];
+const WIZARD_COOKIE = "hs_wizard_done";
 
 export async function middleware(request: NextRequest) {
   const { supabase, supabaseResponse } = createClient(request);
@@ -28,16 +29,28 @@ export async function middleware(request: NextRequest) {
   }
 
   if (user && !isPublic && !pathname.startsWith("/api") && pathname !== "/wizard") {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("wizard_completed")
-      .eq("id", user.id)
-      .single();
+    const wizardCookie = request.cookies.get(WIZARD_COOKIE)?.value === "1";
 
-    if (profile && !profile.wizard_completed) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/wizard";
-      return NextResponse.redirect(url);
+    if (!wizardCookie) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("wizard_completed")
+        .eq("id", user.id)
+        .single();
+
+      if (profile?.wizard_completed) {
+        supabaseResponse.cookies.set(WIZARD_COOKIE, "1", {
+          httpOnly: true,
+          sameSite: "lax",
+          secure: process.env.NODE_ENV === "production",
+          maxAge: 60 * 60 * 24 * 365,
+          path: "/",
+        });
+      } else if (profile && !profile.wizard_completed) {
+        const url = request.nextUrl.clone();
+        url.pathname = "/wizard";
+        return NextResponse.redirect(url);
+      }
     }
   }
 

@@ -19,7 +19,10 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
     try {
-      await api.post("/api/auth/login", { email, password });
+      await api.post("/api/auth/login", {
+        email: email.trim().toLowerCase(),
+        password,
+      });
       router.push("/");
       router.refresh();
     } catch (err) {
@@ -30,23 +33,24 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="grok-bg flex min-h-dvh flex-col items-center justify-center px-6">
-      <div className="relative w-full max-w-sm">
-        <div className="mb-10 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-[20px] border border-border bg-surface">
-            <span className="font-mono text-2xl font-medium text-accent">HS</span>
+    <div className="grok-bg flex min-h-dvh items-center justify-center px-6 py-10">
+      <div className="w-full max-w-sm">
+        <div className="mb-8 text-center">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-[20px] border border-border bg-surface">
+            <span className="font-mono text-xl font-medium text-accent">HS</span>
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight">Bienvenido</h1>
-          <p className="mt-2 text-sm text-secondary">Sistemas, no metas.</p>
+          <h1 className="text-2xl font-semibold tracking-tight">Entrar</h1>
+          <p className="mt-2 text-sm text-secondary">Correo y contraseña</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4 rounded-[20px] border border-border bg-surface p-5">
           <div>
             <Label htmlFor="email">Correo</Label>
             <Input
               id="email"
               type="email"
               autoComplete="email"
+              inputMode="email"
               placeholder="tu@email.com"
               value={email}
               onChange={(e) => setEmail(e.currentTarget.value)}
@@ -66,17 +70,17 @@ export default function LoginPage() {
             />
           </div>
 
-          {error && <p className="text-center text-sm text-red-400">{error}</p>}
+          {error && <p className="text-center text-sm text-danger">{error}</p>}
 
-          <Button type="submit" size="lg" disabled={loading} className="mt-2">
+          <Button type="submit" size="lg" disabled={loading} className="w-full">
             {loading ? "Entrando…" : "Entrar"}
           </Button>
         </form>
 
         <p className="mt-6 text-center text-sm text-muted">
-          ¿Sin cuenta?{" "}
-          <Link href="/auth/register" className="text-accent hover:underline">
-            Registrarse
+          ¿Primera vez?{" "}
+          <Link href="/auth/register" className="text-accent-soft hover:underline">
+            Crear cuenta
           </Link>
         </p>
       </div>

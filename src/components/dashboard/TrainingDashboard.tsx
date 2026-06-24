@@ -1,6 +1,5 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -13,10 +12,10 @@ import {
   TrendingUp,
   Users,
 } from "lucide-react";
-import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { api } from "@/lib/api-client";
+import { DashboardSkeleton } from "@/components/ui/Skeleton";
+import { useStaleQuery } from "@/hooks/useStaleQuery";
 import {
   activeSession,
   completedSessionDates,
@@ -32,29 +31,15 @@ import { cn, formatDate } from "@/lib/utils";
 
 export function TrainingDashboard() {
   const router = useRouter();
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [flows, setFlows] = useState<Flow[]>([]);
-  const [sessions, setSessions] = useState<GymSession[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: profile } = useStaleQuery<Profile>("/api/profile");
+  const { data: flowsData, loading: loadingFlows } = useStaleQuery<Flow[]>("/api/gym/routines");
+  const { data: sessionsData, loading: loadingSessions } =
+    useStaleQuery<GymSession[]>("/api/gym/sessions");
+  const flows = flowsData ?? [];
+  const sessions = sessionsData ?? [];
+  const loading = loadingFlows || loadingSessions;
 
-  const load = useCallback(async () => {
-    try {
-      const [p, f, s] = await Promise.all([
-        api.get<Profile>("/api/profile"),
-        api.get<Flow[]>("/api/gym/routines"),
-        api.get<GymSession[]>("/api/gym/sessions"),
-      ]);
-      setProfile(p);
-      setFlows(f);
-      setSessions(s);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+  const bootstrapping = loading && !profile && sessions.length === 0;
 
   const completedDates = completedSessionDates(sessions);
   const weekDays = buildCurrentWeekStats(completedDates);
@@ -62,9 +47,7 @@ export function TrainingDashboard() {
   const streak = computeTrainingStreak(completedDates);
   const inProgress = activeSession(sessions);
   const lastDone = lastCompletedSession(sessions);
-  const lastFlow = lastDone
-    ? flows.find((f) => f.id === lastDone.routine_id)
-    : flows[0];
+  const lastFlow = lastDone ? flows.find((f) => f.id === lastDone.routine_id) : flows[0];
   const goal = profile?.focus_areas?.[0];
   const frequency = profile?.focus_areas?.[1];
 
@@ -72,9 +55,13 @@ export function TrainingDashboard() {
     router.push(`/gym?start=${flow.id}`);
   }
 
+  if (bootstrapping) {
+    return <DashboardSkeleton />;
+  }
+
   return (
-    <AppShell>
-      <header className="mb-5 animate-fade-up pt-4">
+    <div className="stagger-children">
+      <header className="mb-5 pt-4">
         <p className="grok-label">{formatDate(new Date())}</p>
         <h1 className="mt-1 text-2xl font-semibold tracking-tight">
           {profile?.display_name ? `Hola, ${profile.display_name}` : "Tu entrenamiento"}
@@ -105,7 +92,7 @@ export function TrainingDashboard() {
             <div key={i} className="flex flex-1 flex-col items-center gap-1.5">
               <div
                 className={cn(
-                  "h-9 w-full max-w-[2rem] rounded-full transition-colors",
+                  "h-9 w-full max-w-[2rem] rounded-full transition-colors duration-200",
                   done ? "bg-accent" : isFuture ? "bg-surface-muted/40" : "bg-surface-muted",
                   isToday && "ring-1 ring-accent/40"
                 )}
@@ -164,13 +151,7 @@ export function TrainingDashboard() {
         </Link>
       </div>
 
-      {loading ? (
-        <div className="space-y-2">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-16 animate-pulse rounded-[20px] bg-surface-muted" />
-          ))}
-        </div>
-      ) : sessions.filter((s) => s.status === "completed").length === 0 ? (
+      {sessions.filter((s) => s.status === "completed").length === 0 ? (
         <Card className="p-8 text-center">
           <Dumbbell size={28} className="mx-auto mb-3 text-accent-soft" />
           <p className="font-medium">Aún no hay sesiones</p>
@@ -222,7 +203,7 @@ export function TrainingDashboard() {
             })}
         </div>
       )}
-    </AppShell>
+    </div>
   );
 }
 
@@ -259,7 +240,7 @@ function QuickLink({
 }) {
   return (
     <Link href={href}>
-      <Card className="h-full p-3 transition-colors hover:border-accent-soft/40 active:scale-[0.98]">
+      <Card className="h-full p-3 transition-all duration-200 hover:border-accent-soft/40 active:scale-[0.98]">
         <Icon size={18} className="mb-2 text-accent-soft" />
         <p className="text-sm font-medium">{label}</p>
         <p className="mt-0.5 text-[10px] text-muted">{hint}</p>

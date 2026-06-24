@@ -4,12 +4,14 @@ import { useCallback, useEffect, useState } from "react";
 import { Bell, BellOff, LogOut, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/Button";
 import { Input, Label, Textarea } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
+import { AdminExerciseGifUploadPanel } from "@/components/settings/AdminExerciseGifUploadPanel";
 import { AdminExerciseImportPanel } from "@/components/settings/AdminExerciseImportPanel";
 import { SettingsTabs, type SettingsTab } from "@/components/settings/SettingsTabs";
+import { SettingsSkeleton } from "@/components/ui/Skeleton";
+import { useStaleQuery } from "@/hooks/useStaleQuery";
 import { api, subscribeToPush, unsubscribeFromPush } from "@/lib/api-client";
 import type { Profile, Reminder } from "@/lib/types";
 import { CRON_PRESETS, describeCron } from "@/lib/cron";
@@ -19,8 +21,10 @@ export default function SettingsPage() {
   const router = useRouter();
   const [tab, setTab] = useState<SettingsTab>("general");
   const [isAdmin, setIsAdmin] = useState(false);
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [reminders, setReminders] = useState<Reminder[]>([]);
+  const { data: profile, loading: loadingProfile } = useStaleQuery<Profile>("/api/profile");
+  const { data: remindersData, refresh: refreshReminders } =
+    useStaleQuery<Reminder[]>("/api/reminders");
+  const reminders = remindersData ?? [];
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushError, setPushError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -30,13 +34,9 @@ export default function SettingsPage() {
   const [cronPreset, setCronPreset] = useState("0 8 * * *");
 
   const load = useCallback(async () => {
-    const [p, r, adminStatus] = await Promise.all([
-      api.get<Profile>("/api/profile"),
-      api.get<Reminder[]>("/api/reminders"),
-      api.get<{ is_admin: boolean }>("/api/admin/status"),
-    ]);
-    setProfile(p);
-    setReminders(r);
+    const adminStatus = await api.get<{ is_admin: boolean }>("/api/admin/status", {
+      cache: false,
+    });
     setIsAdmin(adminStatus.is_admin);
 
     if ("serviceWorker" in navigator) {
@@ -92,17 +92,17 @@ export default function SettingsPage() {
     setTitle("");
     setBody("");
     setShowForm(false);
-    await load();
+    await refreshReminders();
   }
 
   async function toggleReminder(id: string, enabled: boolean) {
     await api.patch("/api/reminders", { id, enabled: !enabled });
-    await load();
+    await refreshReminders();
   }
 
   async function deleteReminder(id: string) {
     await api.delete("/api/reminders", { id });
-    await load();
+    await refreshReminders();
   }
 
   async function logout() {
@@ -111,8 +111,14 @@ export default function SettingsPage() {
     router.refresh();
   }
 
+  const bootstrapping = loadingProfile && !profile;
+
+  if (bootstrapping) {
+    return <SettingsSkeleton />;
+  }
+
   return (
-    <AppShell>
+    <>
       <header className="mb-6 pt-4">
         <h1 className="text-2xl font-semibold">Ajustes</h1>
         <p className="text-sm text-muted">{profile?.display_name}</p>
@@ -127,7 +133,10 @@ export default function SettingsPage() {
       <SettingsTabs active={tab} onChange={setTab} showAdmin={isAdmin} />
 
       {tab === "admin" && isAdmin ? (
-        <AdminExerciseImportPanel />
+        <div className="space-y-8">
+          <AdminExerciseGifUploadPanel />
+          <AdminExerciseImportPanel />
+        </div>
       ) : (
         <>
           <section className="mb-8">
@@ -271,6 +280,6 @@ export default function SettingsPage() {
           </section>
         </>
       )}
-    </AppShell>
+    </>
   );
 }

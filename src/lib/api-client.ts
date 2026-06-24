@@ -1,5 +1,13 @@
 "use client";
 
+import {
+  getCached,
+  invalidateCache,
+  peekCached,
+  setCached,
+  ttlForPath,
+} from "@/lib/api-cache";
+
 async function handleResponse<T>(res: Response): Promise<T> {
   const contentType = res.headers.get("content-type") ?? "";
   const raw = await res.text();
@@ -24,32 +32,100 @@ async function handleResponse<T>(res: Response): Promise<T> {
   return data as T;
 }
 
+type GetOptions = {
+  cache?: boolean;
+  ttl?: number;
+  revalidate?: boolean;
+};
+
+function fetchGet<T>(path: string, options?: GetOptions): Promise<T> {
+  const useCache = options?.cache !== false;
+  const ttl = options?.ttl ?? ttlForPath(path);
+
+  if (useCache) {
+    const cached = getCached<T>(path);
+    if (cached !== null) return Promise.resolve(cached);
+  }
+
+  return fetch(path).then(async (res) => {
+    const data = await handleResponse<T>(res);
+    if (useCache) setCached(path, data, ttl);
+    return data;
+  });
+}
+
+function mutateInvalidate(path: string) {
+  if (path.startsWith("/api/gym")) {
+    invalidateCache("/api/gym");
+    invalidateCache("/api/profile");
+    return;
+  }
+  if (path.startsWith("/api/profile")) {
+    invalidateCache("/api/profile");
+    return;
+  }
+  if (path.startsWith("/api/social")) {
+    invalidateCache("/api/social");
+    return;
+  }
+  invalidateCache(path.split("?")[0]);
+}
+
 export const api = {
-  get: <T>(path: string) => fetch(path).then((r) => handleResponse<T>(r)),
+  get: <T>(path: string, options?: GetOptions) => fetchGet<T>(path, options),
+
+  /** Returns cached data immediately and refreshes in the background. */
+  getStale: <T>(path: string, options?: Omit<GetOptions, "revalidate">) => {
+    const cached = peekCached<T>(path);
+    const fresh = fetchGet<T>(path, options);
+    return cached !== null ? Promise.resolve(cached) : fresh;
+  },
+
   post: <T>(path: string, body?: unknown) =>
     fetch(path, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body ?? {}),
-    }).then((r) => handleResponse<T>(r)),
+    }).then(async (r) => {
+      const data = await handleResponse<T>(r);
+      mutateInvalidate(path);
+      return data;
+    }),
+
   patch: <T>(path: string, body: unknown) =>
     fetch(path, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-    }).then((r) => handleResponse<T>(r)),
+    }).then(async (r) => {
+      const data = await handleResponse<T>(r);
+      mutateInvalidate(path);
+      return data;
+    }),
+
   put: <T>(path: string, body: unknown) =>
     fetch(path, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-    }).then((r) => handleResponse<T>(r)),
+    }).then(async (r) => {
+      const data = await handleResponse<T>(r);
+      mutateInvalidate(path);
+      return data;
+    }),
+
   delete: <T>(path: string, body?: unknown) =>
     fetch(path, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: body ? JSON.stringify(body) : undefined,
-    }).then((r) => handleResponse<T>(r)),
+    }).then(async (r) => {
+      const data = await handleResponse<T>(r);
+      mutateInvalidate(path);
+      return data;
+    }),
+
+  invalidate: invalidateCache,
 };
 
 export function urlBase64ToUint8Array(base64String: string) {
@@ -74,7 +150,9 @@ export async function subscribeToPush(): Promise<boolean> {
   const permission = await (Notification as NotificationWithPermission).requestPermission();
   if (permission !== "granted") return false;
 
-  const { publicKey } = await api.get<{ publicKey: string }>("/api/push/subscribe");
+  const { publicKey } = await api.get<{ publicKey: string }>("/api/push/subscribe", {
+    cache: false,
+  });
   if (!publicKey) return false;
 
   const registration = await globalThis.navigator.serviceWorker.ready;

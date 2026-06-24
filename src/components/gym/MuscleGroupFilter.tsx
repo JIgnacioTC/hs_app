@@ -15,13 +15,18 @@ export function MuscleGroupFilter({ groups, active, onSelect }: MuscleGroupFilte
 
   useEffect(() => {
     api
+      .getStale<Record<string, string>>("/api/gym/catalog/muscle-groups/media")
+      .then(setMediaMap)
+      .catch(() => setMediaMap({}));
+
+    void api
       .get<Record<string, string>>("/api/gym/catalog/muscle-groups/media")
       .then(setMediaMap)
       .catch(() => setMediaMap({}));
   }, []);
 
   return (
-    <div className="mb-2 flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+    <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
       <FilterChip active={!active} onClick={() => onSelect(null)} label="Todos" />
       {groups.map((group) => (
         <FilterChip

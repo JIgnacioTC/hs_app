@@ -38,5 +38,17 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: dbError.message }, { status: 500 });
   }
 
-  return NextResponse.json(data);
+  const response = NextResponse.json(data);
+
+  if (body.wizard_completed === true) {
+    response.cookies.set("hs_wizard_done", "1", {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 60 * 60 * 24 * 365,
+      path: "/",
+    });
+  }
+
+  return response;
 }

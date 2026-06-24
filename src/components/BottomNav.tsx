@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Dumbbell, Home, Settings, Users } from "lucide-react";
+import { prefetchTabApis } from "@/lib/app-prefetch";
 import { cn } from "@/lib/utils";
 
 const nav = [
@@ -10,7 +11,7 @@ const nav = [
   { href: "/gym", label: "Flujos", icon: Dumbbell },
   { href: "/social", label: "Social", icon: Users },
   { href: "/settings", label: "Ajustes", icon: Settings },
-];
+] as const;
 
 export function BottomNav() {
   const pathname = usePathname();
@@ -24,8 +25,12 @@ export function BottomNav() {
             <Link
               key={href}
               href={href}
+              prefetch
+              onMouseEnter={() => prefetchTabApis(href)}
+              onFocus={() => prefetchTabApis(href)}
+              onTouchStart={() => prefetchTabApis(href)}
               className={cn(
-                "flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-xl px-2 py-2 text-[10px] transition-colors duration-200",
+                "flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-xl px-2 py-2 text-[10px] transition-all duration-200 active:scale-[0.96]",
                 active ? "text-accent" : "text-muted hover:text-secondary"
               )}
             >

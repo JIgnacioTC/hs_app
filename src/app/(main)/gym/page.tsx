@@ -3,7 +3,6 @@
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Plus, Sparkles } from "lucide-react";
-import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -14,6 +13,8 @@ import { SessionRunner } from "@/components/gym/SessionRunner";
 import { GymTabs, type GymTab } from "@/components/gym/GymTabs";
 import { ExerciseBrowser } from "@/components/gym/ExerciseBrowser";
 import { WorkoutHistoryPanel } from "@/components/gym/WorkoutHistoryPanel";
+import { FlowListSkeleton } from "@/components/ui/Skeleton";
+import { useStaleQuery } from "@/hooks/useStaleQuery";
 import { api } from "@/lib/api-client";
 import { sessionDetailToFlow } from "@/lib/gym/session-resume";
 import type { Flow, FlowDraftStep } from "@/lib/gym/flow";
@@ -36,9 +37,13 @@ function GymPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [tab, setTab] = useState<GymTab>("flows");
-  const [flows, setFlows] = useState<Flow[]>([]);
-  const [sessions, setSessions] = useState<GymSession[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: flowsData, loading: loadingFlows, refresh: refreshFlows, setData: setFlows } =
+    useStaleQuery<Flow[]>("/api/gym/routines");
+  const { data: sessionsData, refresh: refreshSessions } =
+    useStaleQuery<GymSession[]>("/api/gym/sessions");
+  const flows = flowsData ?? [];
+  const sessions = sessionsData ?? [];
+  const loading = loadingFlows && flows.length === 0;
   const [forging, setForging] = useState(false);
   const [editing, setEditing] = useState<Flow | null>(null);
   const [active, setActive] = useState<ActiveSession | null>(null);
@@ -46,24 +51,11 @@ function GymPageInner() {
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
 
-  const load = useCallback(async () => {
-    try {
-      const [r, s] = await Promise.all([
-        api.get<Flow[]>("/api/gym/routines"),
-        api.get<GymSession[]>("/api/gym/sessions"),
-      ]);
-      setFlows(r);
-      setSessions(s);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
   const activeSession = sessions.find((s) => s.status === "active");
+
+  async function reloadGym() {
+    await Promise.all([refreshFlows(), refreshSessions()]);
+  }
 
   const resumeSession = useCallback(async (sessionId: string) => {
     setStarting(true);
@@ -129,7 +121,7 @@ function GymPageInner() {
         })),
       });
       setForging(false);
-      await load();
+      await reloadGym();
     } catch (err) {
       setSessionError(err instanceof Error ? err.message : "No se pudo crear el flujo");
     }
@@ -152,7 +144,7 @@ function GymPageInner() {
   async function updateFlowMeta(flowId: string, patch: { name?: string; description?: string }) {
     const updated = await api.patch<Flow>(`/api/gym/routines/${flowId}`, patch);
     setEditing(updated);
-    await load();
+    await reloadGym();
   }
 
   async function reorderExercise(exerciseId: string, sortOrder: number) {
@@ -161,8 +153,7 @@ function GymPageInner() {
   }
 
   async function refreshEditing(flowId: string) {
-    const updated = await api.get<Flow[]>("/api/gym/routines");
-    setFlows(updated);
+    const updated = await refreshFlows();
     const fresh = updated.find((f) => f.id === flowId);
     if (fresh) setEditing(fresh);
   }
@@ -170,13 +161,13 @@ function GymPageInner() {
   async function removeStep(id: string) {
     await api.delete("/api/gym/exercises", { id });
     if (editing) await refreshEditing(editing.id);
-    else await load();
+    else await reloadGym();
   }
 
   async function deleteFlow(id: string) {
     await api.delete("/api/gym/routines", { id });
     setEditing(null);
-    await load();
+    await reloadGym();
   }
 
   async function startSession(flow: Flow, force = false) {
@@ -199,7 +190,7 @@ function GymPageInner() {
         { routine_id: flow.id }
       );
       setActive({ session: data.session, flow: data.routine, logs: [] });
-      await load();
+      await reloadGym();
     } catch (err) {
       setSessionError(err instanceof Error ? err.message : "No se pudo iniciar sesión");
     } finally {
@@ -211,7 +202,7 @@ function GymPageInner() {
     if (!active) return;
     await api.patch(`/api/gym/sessions/${active.session.id}`, { status: "completed" });
     setActive(null);
-    await load();
+    await reloadGym();
     router.replace("/gym?tab=flows", { scroll: false });
   }
 
@@ -219,7 +210,7 @@ function GymPageInner() {
     if (!active) return;
     await api.patch(`/api/gym/sessions/${active.session.id}`, { status: "abandoned" });
     setActive(null);
-    await load();
+    await reloadGym();
     router.replace("/gym?tab=flows", { scroll: false });
   }
 
@@ -270,7 +261,7 @@ function GymPageInner() {
   }
 
   return (
-    <AppShell>
+    <>
       <header className="mb-4 pt-4">
         <p className="grok-label">Movimiento</p>
         <h1 className="text-2xl font-semibold tracking-tight">Flujos</h1>
@@ -312,11 +303,7 @@ function GymPageInner() {
           </div>
 
           {loading ? (
-            <div className="space-y-4">
-              {[1, 2].map((i) => (
-                <div key={i} className="h-36 animate-pulse rounded-[20px] bg-surface-muted" />
-              ))}
-            </div>
+            <FlowListSkeleton />
           ) : flows.length === 0 ? (
             <Card className="p-10 text-center">
               <Sparkles size={32} className="mx-auto mb-4 text-accent-soft" />
@@ -362,7 +349,7 @@ function GymPageInner() {
         }}
         onCancel={() => setPendingFlow(null)}
       />
-    </AppShell>
+    </>
   );
 }
 
