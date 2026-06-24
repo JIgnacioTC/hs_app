@@ -1,20 +1,60 @@
 "use client";
 
+import { useCallback, useMemo, useState } from "react";
 import { Film, Play } from "lucide-react";
 import type { ExerciseCatalog } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-export function pickMediaUrl(
-  exercise: Pick<ExerciseCatalog, "demo_gif_url" | "image_url" | "image_urls">
-) {
-  return (
-    exercise.demo_gif_url ??
-    exercise.image_urls?.["720p"] ??
-    exercise.image_urls?.["480p"] ??
-    exercise.image_url ??
-    exercise.image_urls?.["360p"] ??
-    null
-  );
+type MediaFields = Pick<ExerciseCatalog, "demo_gif_url" | "image_url" | "image_urls">;
+
+function uniqueUrls(urls: Array<string | null | undefined>): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const url of urls) {
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    result.push(url);
+  }
+  return result;
+}
+
+/** Full demo: GIF first, then still frames. */
+export function pickMediaUrl(exercise: MediaFields) {
+  return buildMediaCandidates(exercise, false)[0] ?? null;
+}
+
+/** Thumbnails: still image first (much smaller than GIF). */
+export function pickThumbUrl(exercise: MediaFields) {
+  return buildMediaCandidates(exercise, true)[0] ?? null;
+}
+
+export function buildMediaCandidates(exercise: MediaFields, preferStill: boolean): string[] {
+  const still = uniqueUrls([
+    exercise.image_url,
+    exercise.image_urls?.["360p"],
+    exercise.image_urls?.["480p"],
+    exercise.image_urls?.["720p"],
+  ]);
+  const motion = uniqueUrls([exercise.demo_gif_url]);
+  return preferStill ? uniqueUrls([...still, ...motion]) : uniqueUrls([...motion, ...still]);
+}
+
+function useMediaWithFallback(candidates: string[]) {
+  const [index, setIndex] = useState(0);
+  const [loaded, setLoaded] = useState(false);
+
+  const url = candidates[index] ?? null;
+
+  const onError = useCallback(() => {
+    setLoaded(false);
+    setIndex((current) => (current < candidates.length - 1 ? current + 1 : current));
+  }, [candidates.length]);
+
+  const onLoad = useCallback(() => {
+    setLoaded(true);
+  }, []);
+
+  return { url, loaded, onError, onLoad, hasCandidates: candidates.length > 0 };
 }
 
 interface ExerciseMediaProps {
@@ -35,7 +75,8 @@ export function ExerciseMedia({
   session = false,
   wide = false,
 }: ExerciseMediaProps) {
-  const mediaUrl = pickMediaUrl(exercise);
+  const candidates = useMemo(() => buildMediaCandidates(exercise, false), [exercise]);
+  const { url, loaded, onError, onLoad } = useMediaWithFallback(candidates);
   const square = compact || session || !wide;
 
   if (exercise.video_url && !session) {
@@ -48,7 +89,7 @@ export function ExerciseMedia({
       >
         <video
           src={exercise.video_url}
-          poster={mediaUrl ?? undefined}
+          poster={url ?? undefined}
           controls
           playsInline
           className={cn(
@@ -60,21 +101,36 @@ export function ExerciseMedia({
     );
   }
 
-  if (mediaUrl) {
+  if (url) {
     return (
       <div
         className={cn(
-          "overflow-hidden border border-border bg-surface-muted",
+          "relative overflow-hidden border border-border bg-surface-muted",
           session ? "rounded-2xl" : "rounded-[20px]",
           className
         )}
       >
+        {!loaded && (
+          <div
+            className={cn(
+              "absolute inset-0 animate-pulse bg-surface-muted",
+              square ? "aspect-square" : "aspect-video"
+            )}
+          />
+        )}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={mediaUrl}
+          src={url}
           alt={session ? "" : `Demo de ${exercise.name}`}
-          className={cn("w-full object-cover", square ? "aspect-square" : "aspect-video")}
+          className={cn(
+            "w-full object-cover transition-opacity duration-200",
+            square ? "aspect-square" : "aspect-video",
+            loaded ? "opacity-100" : "opacity-0"
+          )}
           loading="lazy"
+          decoding="async"
+          onLoad={onLoad}
+          onError={onError}
         />
       </div>
     );
@@ -94,7 +150,7 @@ export function ExerciseMedia({
         <>
           <p className="text-sm font-medium text-secondary">Demo del movimiento</p>
           {!compact && (
-            <p className="text-xs text-muted">Importa el catálogo para cargar GIF o imagen</p>
+            <p className="text-xs text-muted">Sin imagen disponible para este ejercicio</p>
           )}
         </>
       )}
@@ -109,9 +165,10 @@ export function ExerciseMediaThumb({
   exercise: Pick<ExerciseCatalog, "name" | "demo_gif_url" | "image_url" | "image_urls">;
   className?: string;
 }) {
-  const mediaUrl = pickMediaUrl(exercise);
+  const candidates = useMemo(() => buildMediaCandidates(exercise, true), [exercise]);
+  const { url, loaded, onError, onLoad } = useMediaWithFallback(candidates);
 
-  if (!mediaUrl) {
+  if (!url) {
     return (
       <div
         className={cn(
@@ -125,15 +182,21 @@ export function ExerciseMediaThumb({
   }
 
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={mediaUrl}
-      alt=""
-      className={cn(
-        "aspect-square shrink-0 rounded-2xl border border-border object-cover",
-        className
-      )}
-      loading="lazy"
-    />
+    <div className={cn("relative shrink-0 overflow-hidden rounded-2xl border border-border", className)}>
+      {!loaded && <div className="absolute inset-0 animate-pulse bg-surface-muted" />}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={url}
+        alt=""
+        className={cn(
+          "aspect-square h-full w-full object-cover transition-opacity duration-200",
+          loaded ? "opacity-100" : "opacity-0"
+        )}
+        loading="lazy"
+        decoding="async"
+        onLoad={onLoad}
+        onError={onError}
+      />
+    </div>
   );
 }
