@@ -49,6 +49,12 @@ Opcional: `NEXT_PUBLIC_EXERCISE_GIF_PROVIDER=r2` fuerza R2 aunque no detecte la 
 
 Sube los GIFs desde **Ajustes → Admin** en la app (subida masiva con URLs prefirmadas).
 
+### Auth (registro sin verificación de correo)
+
+El signup usa `SUPABASE_SERVICE_ROLE_KEY` para crear usuarios con `email_confirm: true` y entrar al instante.
+
+Si no tienes service role en Preview, desactiva **Confirm email** en Supabase → Authentication → Providers → Email.
+
 ### Generar claves VAPID
 
 En local:

@@ -3,6 +3,7 @@ import path from "node:path";
 import type { DatasetExercise } from "@/lib/gym/exercise-dataset/types";
 
 let cached: DatasetExercise[] | null = null;
+let indexById: Map<string, DatasetExercise> | null = null;
 
 export function loadExerciseDataset(): DatasetExercise[] {
   if (cached) return cached;
@@ -13,6 +14,13 @@ export function loadExerciseDataset(): DatasetExercise[] {
   return cached;
 }
 
+function datasetIndex(): Map<string, DatasetExercise> {
+  if (!indexById) {
+    indexById = new Map(loadExerciseDataset().map((exercise) => [exercise.id, exercise]));
+  }
+  return indexById;
+}
+
 export function getDatasetExerciseById(id: string): DatasetExercise | undefined {
-  return loadExerciseDataset().find((e) => e.id === id);
+  return datasetIndex().get(id);
 }

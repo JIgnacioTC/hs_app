@@ -168,8 +168,8 @@ export function AdminExerciseGifUploadPanel() {
         <p className="grok-label mb-1">GIFs en Cloudflare R2</p>
         <p className="text-sm text-secondary">
           Sube los GIFs del dataset al bucket <code className="text-accent-soft">hs-gifs</code>.
-          Los ejercicios los servirán desde R2 cuando configures{" "}
-          <code className="text-accent-soft">NEXT_PUBLIC_R2_GIF_PUBLIC_URL</code> en Vercel.
+          Los ejercicios cargan los GIFs exclusivamente desde R2 (
+          <code className="text-accent-soft">NEXT_PUBLIC_R2_GIF_PUBLIC_URL</code>).
         </p>
       </div>
 

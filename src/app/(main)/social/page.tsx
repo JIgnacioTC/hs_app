@@ -2,7 +2,6 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { AppShell } from "@/components/AppShell";
 import { FriendsPanel } from "@/components/social/FriendsPanel";
 import { RoutineSharesPanel } from "@/components/social/RoutineSharesPanel";
 import { SocialTabs, type SocialTab } from "@/components/social/SocialTabs";
@@ -25,7 +24,7 @@ function SocialPageContent() {
   }, [addUserId, tabParam]);
 
   return (
-    <AppShell>
+    <>
       <header className="mb-4 pt-4">
         <p className="grok-label">Comunidad</p>
         <h1 className="text-2xl font-semibold tracking-tight">Social</h1>
@@ -39,7 +38,7 @@ function SocialPageContent() {
       {tab === "feed" && <SocialFeed />}
       {tab === "routines" && <RoutineSharesPanel />}
       {tab === "friends" && <FriendsPanel addUserId={addUserId} />}
-    </AppShell>
+    </>
   );
 }
 

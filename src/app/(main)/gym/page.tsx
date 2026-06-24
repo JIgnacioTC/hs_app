@@ -3,7 +3,6 @@
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Plus, Sparkles } from "lucide-react";
-import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -49,14 +48,22 @@ function GymPageInner() {
   const load = useCallback(async () => {
     try {
       const [r, s] = await Promise.all([
-        api.get<Flow[]>("/api/gym/routines"),
-        api.get<GymSession[]>("/api/gym/sessions"),
+        api.getStale<Flow[]>("/api/gym/routines"),
+        api.getStale<GymSession[]>("/api/gym/sessions"),
       ]);
       setFlows(r);
       setSessions(s);
     } finally {
       setLoading(false);
     }
+
+    void Promise.all([
+      api.get<Flow[]>("/api/gym/routines"),
+      api.get<GymSession[]>("/api/gym/sessions"),
+    ]).then(([r, s]) => {
+      setFlows(r);
+      setSessions(s);
+    });
   }, []);
 
   useEffect(() => {
@@ -270,7 +277,7 @@ function GymPageInner() {
   }
 
   return (
-    <AppShell>
+    <>
       <header className="mb-4 pt-4">
         <p className="grok-label">Movimiento</p>
         <h1 className="text-2xl font-semibold tracking-tight">Flujos</h1>
@@ -362,7 +369,7 @@ function GymPageInner() {
         }}
         onCancel={() => setPendingFlow(null)}
       />
-    </AppShell>
+    </>
   );
 }
 

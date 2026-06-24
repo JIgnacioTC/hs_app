@@ -15,6 +15,11 @@ export function MuscleGroupFilter({ groups, active, onSelect }: MuscleGroupFilte
 
   useEffect(() => {
     api
+      .getStale<Record<string, string>>("/api/gym/catalog/muscle-groups/media")
+      .then(setMediaMap)
+      .catch(() => setMediaMap({}));
+
+    void api
       .get<Record<string, string>>("/api/gym/catalog/muscle-groups/media")
       .then(setMediaMap)
       .catch(() => setMediaMap({}));

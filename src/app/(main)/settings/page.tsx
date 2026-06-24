@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from "react";
 import { Bell, BellOff, LogOut, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/Button";
 import { Input, Label, Textarea } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
@@ -32,9 +31,9 @@ export default function SettingsPage() {
 
   const load = useCallback(async () => {
     const [p, r, adminStatus] = await Promise.all([
-      api.get<Profile>("/api/profile"),
-      api.get<Reminder[]>("/api/reminders"),
-      api.get<{ is_admin: boolean }>("/api/admin/status"),
+      api.getStale<Profile>("/api/profile"),
+      api.getStale<Reminder[]>("/api/reminders"),
+      api.get<{ is_admin: boolean }>("/api/admin/status", { cache: false }),
     ]);
     setProfile(p);
     setReminders(r);
@@ -45,6 +44,14 @@ export default function SettingsPage() {
       const sub = await reg.pushManager.getSubscription();
       setPushEnabled(!!sub);
     }
+
+    void Promise.all([
+      api.get<Profile>("/api/profile"),
+      api.get<Reminder[]>("/api/reminders"),
+    ]).then(([freshProfile, freshReminders]) => {
+      setProfile(freshProfile);
+      setReminders(freshReminders);
+    });
   }, []);
 
   useEffect(() => {
@@ -113,7 +120,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <AppShell>
+    <>
       <header className="mb-6 pt-4">
         <h1 className="text-2xl font-semibold">Ajustes</h1>
         <p className="text-sm text-muted">{profile?.display_name}</p>
@@ -275,6 +282,6 @@ export default function SettingsPage() {
           </section>
         </>
       )}
-    </AppShell>
+    </>
   );
 }

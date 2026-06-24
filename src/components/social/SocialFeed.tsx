@@ -32,14 +32,18 @@ export function SocialFeed() {
   const [actionError, setActionError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    setLoading(true);
     setError(null);
     try {
-      const data = await api.get<SocialPost[]>("/api/social/feed");
+      const data = await api.getStale<SocialPost[]>("/api/social/feed");
       setPosts(data);
+      setLoading(false);
+
+      void api.get<SocialPost[]>("/api/social/feed").then((fresh) => {
+        setPosts(fresh);
+        setLoading(false);
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo cargar el feed");
-    } finally {
       setLoading(false);
     }
   }, []);

@@ -172,9 +172,8 @@ export function AdminExerciseImportPanel() {
       <div>
         <p className="grok-label mb-1">Catálogo de ejercicios</p>
         <p className="text-sm text-secondary">
-          Dataset local (1.324 ejercicios). Los GIFs se sirven desde Cloudflare R2 cuando{" "}
-          <code className="text-accent-soft">NEXT_PUBLIC_R2_GIF_PUBLIC_URL</code> está configurado;
-          las imágenes estáticas usan CDN. Enriquece los curados en español e importa el resto del
+          Dataset local (1.324 ejercicios). Los GIFs se sirven solo desde Cloudflare R2; las
+          imágenes estáticas usan CDN. Enriquece los curados en español e importa el resto del
           catálogo.
         </p>
       </div>

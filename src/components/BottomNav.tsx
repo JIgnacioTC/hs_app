@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Dumbbell, Home, Settings, Users } from "lucide-react";
+import { api } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 
 const nav = [
@@ -10,7 +11,29 @@ const nav = [
   { href: "/gym", label: "Flujos", icon: Dumbbell },
   { href: "/social", label: "Social", icon: Users },
   { href: "/settings", label: "Ajustes", icon: Settings },
-];
+] as const;
+
+function prefetchTabData(href: string) {
+  if (href === "/") {
+    void api.getStale("/api/profile");
+    void api.getStale("/api/gym/routines");
+    void api.getStale("/api/gym/sessions");
+    return;
+  }
+  if (href === "/gym") {
+    void api.getStale("/api/gym/routines");
+    void api.getStale("/api/gym/sessions");
+    return;
+  }
+  if (href === "/settings") {
+    void api.getStale("/api/profile");
+    void api.getStale("/api/reminders");
+    return;
+  }
+  if (href === "/social") {
+    void api.getStale("/api/social/feed");
+  }
+}
 
 export function BottomNav() {
   const pathname = usePathname();
@@ -24,6 +47,10 @@ export function BottomNav() {
             <Link
               key={href}
               href={href}
+              prefetch
+              onMouseEnter={() => prefetchTabData(href)}
+              onFocus={() => prefetchTabData(href)}
+              onTouchStart={() => prefetchTabData(href)}
               className={cn(
                 "flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-xl px-2 py-2 text-[10px] transition-colors duration-200",
                 active ? "text-accent" : "text-muted hover:text-secondary"

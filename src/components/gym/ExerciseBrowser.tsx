@@ -38,9 +38,12 @@ export function ExerciseBrowser() {
     if (filters.exerciseType) params.set("exercise_type", filters.exerciseType);
     params.set("sort", filters.sort);
     const qs = params.toString();
-    const data = await api.get<ExerciseCatalog[]>(`/api/gym/catalog${qs ? `?${qs}` : ""}`);
+    const path = `/api/gym/catalog${qs ? `?${qs}` : ""}`;
+    const data = await api.getStale<ExerciseCatalog[]>(path);
     setCatalog(data);
     setLoading(false);
+
+    void api.get<ExerciseCatalog[]>(path).then(setCatalog);
   }, [filters]);
 
   useEffect(() => {

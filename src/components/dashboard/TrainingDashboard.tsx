@@ -13,7 +13,6 @@ import {
   TrendingUp,
   Users,
 } from "lucide-react";
-import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { api } from "@/lib/api-client";
@@ -40,9 +39,9 @@ export function TrainingDashboard() {
   const load = useCallback(async () => {
     try {
       const [p, f, s] = await Promise.all([
-        api.get<Profile>("/api/profile"),
-        api.get<Flow[]>("/api/gym/routines"),
-        api.get<GymSession[]>("/api/gym/sessions"),
+        api.getStale<Profile>("/api/profile"),
+        api.getStale<Flow[]>("/api/gym/routines"),
+        api.getStale<GymSession[]>("/api/gym/sessions"),
       ]);
       setProfile(p);
       setFlows(f);
@@ -50,6 +49,16 @@ export function TrainingDashboard() {
     } finally {
       setLoading(false);
     }
+
+    void Promise.all([
+      api.get<Profile>("/api/profile"),
+      api.get<Flow[]>("/api/gym/routines"),
+      api.get<GymSession[]>("/api/gym/sessions"),
+    ]).then(([p, f, s]) => {
+      setProfile(p);
+      setFlows(f);
+      setSessions(s);
+    });
   }, []);
 
   useEffect(() => {
@@ -73,7 +82,7 @@ export function TrainingDashboard() {
   }
 
   return (
-    <AppShell>
+    <>
       <header className="mb-5 animate-fade-up pt-4">
         <p className="grok-label">{formatDate(new Date())}</p>
         <h1 className="mt-1 text-2xl font-semibold tracking-tight">
@@ -222,7 +231,7 @@ export function TrainingDashboard() {
             })}
         </div>
       )}
-    </AppShell>
+    </>
   );
 }
 
