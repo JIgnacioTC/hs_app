@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/utils/supabase/server";
 import { requireAuth, jsonError } from "@/lib/api-helpers";
 import { defaultPlannedSets } from "@/lib/gym/sets";
+import { withExerciseMedia, withNestedExerciseMedia } from "@/lib/gym/enrich-catalog-response";
 
 export async function POST(request: Request) {
   const { user, error } = await requireAuth();
@@ -42,7 +43,7 @@ export async function POST(request: Request) {
     order = count ?? 0;
   }
 
-  const setsPlan = planned_sets ?? defaultPlannedSets(catalog);
+  const setsPlan = planned_sets ?? defaultPlannedSets(withExerciseMedia(catalog));
 
   const { data: exercise, error: dbError } = await supabase
     .from("gym_exercises")
@@ -82,7 +83,7 @@ export async function POST(request: Request) {
     .eq("id", exercise.id)
     .single();
 
-  return NextResponse.json(withSets, { status: 201 });
+  return NextResponse.json(withNestedExerciseMedia(withSets!), { status: 201 });
 }
 
 export async function DELETE(request: Request) {

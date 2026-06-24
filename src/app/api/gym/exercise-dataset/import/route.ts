@@ -9,6 +9,7 @@ import {
   getDatasetTotal,
   getNormalizedDatasetBatch,
   resolveCatalogExercise,
+  mediaPayloadFromDatasetId,
   toCatalogMediaPayload,
   toCatalogRow,
 } from "@/lib/gym/exercise-dataset/catalog-import";
@@ -69,7 +70,7 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json().catch(() => ({}));
-    const mode = body.mode === "enrich" ? "enrich" : "import";
+    const mode = body.mode === "enrich" ? "enrich" : body.mode === "refresh-media" ? "refresh-media" : "import";
     const syncAll = body.all === true;
     const offset = Math.max(0, Number(body.offset) || 0);
     const limit = Math.min(Math.max(1, Number(body.limit) || IMPORT_BATCH_SIZE), 50);
@@ -79,6 +80,10 @@ export async function POST(request: Request) {
 
     if (mode === "enrich") {
       return handleEnrichBatch(supabase, user!.id, { slug, syncAll, offset, limit });
+    }
+
+    if (mode === "refresh-media") {
+      return handleRefreshMediaBatch(supabase, { offset, limit });
     }
 
     return handleImportBatch(supabase, user!.id, { offset, limit });
@@ -180,6 +185,71 @@ async function handleEnrichBatch(
     nextOffset,
     total,
     batch_size: batch.length,
+    updated: results.filter((r) => r.status === "updated").length,
+    results,
+  });
+}
+
+async function handleRefreshMediaBatch(
+  supabase: Awaited<ReturnType<typeof getSupabaseServerClient>>,
+  opts: { offset: number; limit: number }
+) {
+  const { count } = await supabase
+    .from("exercise_catalog")
+    .select("id", { count: "exact", head: true })
+    .eq("active", true)
+    .not("dataset_id", "is", null);
+
+  const total = count ?? 0;
+
+  const { data: rows, error: dbError } = await supabase
+    .from("exercise_catalog")
+    .select("id, dataset_id, slug")
+    .eq("active", true)
+    .not("dataset_id", "is", null)
+    .order("dataset_id")
+    .range(opts.offset, opts.offset + opts.limit - 1);
+
+  if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });
+
+  const results: Array<{ slug?: string; dataset_id: string; status: string; reason?: string }> = [];
+
+  for (const row of rows ?? []) {
+    const payload = mediaPayloadFromDatasetId(row.dataset_id);
+    if (!payload) {
+      results.push({
+        dataset_id: row.dataset_id,
+        status: "skipped",
+        reason: "Sin entrada en dataset local",
+      });
+      continue;
+    }
+
+    const { error: updateError } = await supabase
+      .from("exercise_catalog")
+      .update(payload)
+      .eq("id", row.id);
+
+    results.push({
+      slug: row.slug,
+      dataset_id: row.dataset_id,
+      status: updateError ? "skipped" : "updated",
+      reason: updateError?.message,
+    });
+  }
+
+  const batchLen = rows?.length ?? 0;
+  const nextOffset = opts.offset + batchLen;
+  const done = nextOffset >= total || batchLen === 0;
+
+  return NextResponse.json({
+    ok: true,
+    mode: "refresh-media",
+    done,
+    offset: opts.offset,
+    nextOffset,
+    total,
+    batch_size: batchLen,
     updated: results.filter((r) => r.status === "updated").length,
     results,
   });

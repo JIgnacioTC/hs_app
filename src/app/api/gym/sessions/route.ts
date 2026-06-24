@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/utils/supabase/server";
 import { requireAuth, jsonError } from "@/lib/api-helpers";
+import { withFlowExerciseMedia } from "@/lib/gym/enrich-catalog-response";
 
 export async function POST(request: Request) {
   const { user, error } = await requireAuth();
@@ -56,7 +57,7 @@ export async function POST(request: Request) {
   return NextResponse.json(
     {
       session,
-      routine: { ...routine, gym_exercises: exercises },
+      routine: withFlowExerciseMedia({ ...routine, gym_exercises: exercises }),
     },
     { status: 201 }
   );

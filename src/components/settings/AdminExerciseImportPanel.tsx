@@ -27,7 +27,7 @@ interface ImportResultItem {
 interface ImportBatchResponse {
   ok: boolean;
   done: boolean;
-  mode: "enrich" | "import";
+  mode: "enrich" | "import" | "refresh-media";
   offset: number;
   nextOffset: number;
   total: number;
@@ -77,6 +77,40 @@ export function AdminExerciseImportPanel() {
       limit: batchSize,
       all: all ?? false,
     });
+  }
+
+  async function refreshMediaUrls() {
+    setImporting(true);
+    setError(null);
+    setProgress(0);
+    setPhase("import");
+
+    const batchSize = 50;
+    let offset = 0;
+    let done = false;
+    let totalUpdated = 0;
+
+    try {
+      while (!done) {
+        const result = await api.post<ImportBatchResponse>("/api/gym/exercise-dataset/import", {
+          mode: "refresh-media",
+          offset,
+          limit: batchSize,
+        });
+        totalUpdated += result.updated ?? 0;
+        offset = result.nextOffset;
+        done = result.done;
+        setProgress(result.total > 0 ? offset / result.total : 1);
+      }
+      setLastRun({ updated: totalUpdated, results: [] });
+      await loadStats();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al refrescar media");
+    } finally {
+      setImporting(false);
+      setProgress(0);
+      setPhase(null);
+    }
   }
 
   async function runImport() {
@@ -138,8 +172,10 @@ export function AdminExerciseImportPanel() {
       <div>
         <p className="grok-label mb-1">Catálogo de ejercicios</p>
         <p className="text-sm text-secondary">
-          Importa el dataset local (1.324 ejercicios con GIFs vía CDN). Enriquece los ejercicios
-          curados en español y carga el resto del catálogo sin depender de APIs externas.
+          Dataset local (1.324 ejercicios). Las imágenes y GIFs se sirven desde tu bucket{" "}
+          <code className="text-accent-soft">images</code> en Supabase cuando{" "}
+          <code className="text-accent-soft">NEXT_PUBLIC_SUPABASE_URL</code> está configurado.
+          Enriquece los curados en español e importa el resto del catálogo.
         </p>
       </div>
 
@@ -217,6 +253,16 @@ export function AdminExerciseImportPanel() {
         >
           <RefreshCw size={18} className={cn(importing && "animate-spin")} />
           {importing ? "Importando…" : "Importar catálogo completo"}
+        </Button>
+
+        <Button
+          variant="outline"
+          size="lg"
+          className="w-full"
+          onClick={refreshMediaUrls}
+          disabled={importing || loadingStats}
+        >
+          Refrescar URLs desde Supabase Storage
         </Button>
 
         {error && <p className="text-sm text-danger">{error}</p>}

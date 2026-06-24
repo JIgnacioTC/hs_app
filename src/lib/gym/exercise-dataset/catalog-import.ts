@@ -1,4 +1,5 @@
-import { loadExerciseDataset } from "@/lib/gym/exercise-dataset/load";
+import { loadExerciseDataset, getDatasetExerciseById } from "@/lib/gym/exercise-dataset/load";
+import { datasetMediaUrl } from "@/lib/gym/exercise-dataset/media";
 import {
   mapMuscleGroupToBodyPart,
   normalizeDatasetExercise,
@@ -208,6 +209,36 @@ export function getDatasetTotal(): number {
   return loadExerciseDataset().length;
 }
 
-export function getDatasetExerciseRaw(id: string): DatasetExercise | undefined {
-  return loadExerciseDataset().find((e) => e.id === id);
+export function getDatasetExerciseRaw(id: string) {
+  return getDatasetExerciseById(id);
+}
+
+export function enrichExerciseCatalogMedia<
+  T extends {
+    dataset_id?: string | null;
+    demo_gif_url?: string | null;
+    image_url?: string | null;
+  },
+>(exercise: T): T {
+  if (!exercise.dataset_id) return exercise;
+
+  const raw = getDatasetExerciseById(exercise.dataset_id);
+  if (!raw) return exercise;
+
+  const demo = datasetMediaUrl(raw.gif_url);
+  const image = datasetMediaUrl(raw.image);
+
+  if (!demo && !image) return exercise;
+
+  return {
+    ...exercise,
+    demo_gif_url: demo ?? exercise.demo_gif_url,
+    image_url: image ?? exercise.image_url,
+  };
+}
+
+export function mediaPayloadFromDatasetId(datasetId: string): CatalogMediaPayload | null {
+  const raw = getDatasetExerciseById(datasetId);
+  if (!raw) return null;
+  return toCatalogMediaPayload(normalizeDatasetExercise(raw));
 }

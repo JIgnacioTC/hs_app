@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/utils/supabase/server";
 import { requireAuth } from "@/lib/api-helpers";
+import { withExerciseMedia, withExerciseMediaList } from "@/lib/gym/enrich-catalog-response";
 
 export async function GET(request: Request) {
   const { user, error } = await requireAuth();
@@ -34,10 +35,12 @@ export async function GET(request: Request) {
       .eq("user_id", user!.id)
       .eq("exercise_catalog_id", id);
 
-    return NextResponse.json({
-      ...data,
-      activity_count: logs?.length ?? 0,
-    });
+    return NextResponse.json(
+      withExerciseMedia({
+        ...data,
+        activity_count: logs?.length ?? 0,
+      })
+    );
   }
 
   let query = supabase.from("exercise_catalog").select("*").eq("active", true);
@@ -92,5 +95,5 @@ export async function GET(request: Request) {
     items.sort((a, b) => a.name.localeCompare(b.name, "es"));
   }
 
-  return NextResponse.json(items);
+  return NextResponse.json(withExerciseMediaList(items));
 }

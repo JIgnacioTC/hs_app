@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/utils/supabase/server";
 import { requireAuth, jsonError } from "@/lib/api-helpers";
+import { withFlowExerciseMedia } from "@/lib/gym/enrich-catalog-response";
 
 export async function GET() {
   const { user, error } = await requireAuth();
@@ -30,7 +31,7 @@ export async function GET() {
       .sort((a: { sort_order: number }, b: { sort_order: number }) => a.sort_order - b.sort_order),
   }));
 
-  return NextResponse.json(routines);
+  return NextResponse.json(routines.map(withFlowExerciseMedia));
 }
 
 export async function POST(request: Request) {
