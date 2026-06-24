@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Bell, BellOff, LogOut, Plus, Trash2 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/Button";
@@ -115,6 +116,12 @@ export default function SettingsPage() {
       <header className="mb-6 pt-4">
         <h1 className="text-2xl font-semibold">Ajustes</h1>
         <p className="text-sm text-muted">{profile?.display_name}</p>
+        <Link
+          href="/social"
+          className="mt-2 inline-flex text-sm text-accent-soft underline"
+        >
+          Perfil social y amigos →
+        </Link>
       </header>
 
       <SettingsTabs active={tab} onChange={setTab} showAdmin={isAdmin} />

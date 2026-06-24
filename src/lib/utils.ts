@@ -1,11 +1,18 @@
+import { format } from "date-fns";
 import { habitPalette } from "@/styles/branding";
 
 export function cn(...classes: (string | false | null | undefined)[]) {
   return classes.filter(Boolean).join(" ");
 }
 
+/** Fecha local YYYY-MM-DD (no UTC). */
+export function localDateKey(date: Date | string) {
+  const d = typeof date === "string" ? new Date(date) : date;
+  return format(d, "yyyy-MM-dd");
+}
+
 export function todayISO() {
-  return new Date().toISOString().split("T")[0];
+  return localDateKey(new Date());
 }
 
 export function formatDate(date: Date) {

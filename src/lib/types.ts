@@ -188,3 +188,31 @@ export interface CreateHabitPayload {
   implementation_intention?: string;
   habit_kind?: HabitKind;
 }
+
+export interface FriendProfile {
+  id: string;
+  display_name: string;
+}
+
+export interface WorkoutPostComment {
+  id: string;
+  body: string;
+  created_at: string;
+  user_id: string;
+  author_name: string;
+}
+
+export interface WorkoutPost {
+  id: string;
+  user_id: string;
+  session_id: string;
+  routine_name: string;
+  duration_seconds: number | null;
+  exercise_count: number;
+  set_count: number;
+  created_at: string;
+  author_name: string;
+  like_count: number;
+  liked_by_me: boolean;
+  comments: WorkoutPostComment[];
+}

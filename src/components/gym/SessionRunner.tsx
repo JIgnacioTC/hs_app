@@ -146,6 +146,49 @@ export function SessionRunner({ session, flow, onComplete, onExit }: SessionRunn
     setMode("rest");
   }
 
+  async function completeAllSetsForExercise() {
+    if (!exercise) return;
+
+    const remaining = sets.filter(
+      (s) => !completed.has(setKey(exercise.id, s.set_number))
+    );
+    if (!remaining.length) return;
+
+    for (const set of remaining) {
+      await api.post(`/api/gym/sessions/${session.id}/sets`, {
+        gym_exercise_id: exercise.id,
+        exercise_catalog_id: exercise.exercise_catalog_id,
+        set_number: set.set_number,
+        reps: timeBased ? null : set.target_reps,
+        duration_seconds: timeBased ? set.target_seconds : null,
+        weight_kg: set.target_weight_kg,
+        rir: set.target_rir,
+      });
+    }
+
+    setCompleted((prev) => {
+      const next = new Set(prev);
+      for (const set of remaining) {
+        next.add(setKey(exercise.id, set.set_number));
+      }
+      return next;
+    });
+
+    if (exerciseIndex < exercises.length - 1) {
+      setExerciseIndex((i) => i + 1);
+      setSetIndex(0);
+      return;
+    }
+
+    setFinishing(true);
+    void showLocalNotification("¡Sesión completa!", {
+      body: `${flow.name} · ${formatElapsed(elapsed)}`,
+      tag: "gym-session-complete",
+      url: "/gym",
+    });
+    setTimeout(() => void onComplete(), 1200);
+  }
+
   function skipSet() {
     advanceWithoutRest();
   }
@@ -237,6 +280,7 @@ export function SessionRunner({ session, flow, onComplete, onExit }: SessionRunn
         onOpenSwitcher={() => setShowSwitcher(true)}
         onUpdateSet={updateCurrentSet}
         onCompleteSet={() => void completeSet()}
+        onCompleteExercise={() => void completeAllSetsForExercise()}
         onSkipSet={skipSet}
       />
 

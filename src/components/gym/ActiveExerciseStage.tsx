@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, LayoutGrid, SkipForward, X } from "lucide-react";
+import { Check, CheckCheck, LayoutGrid, SkipForward, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { ExerciseMedia } from "@/components/gym/ExerciseMedia";
 import { FlowThread } from "@/components/gym/FlowThread";
@@ -23,6 +23,7 @@ interface ActiveExerciseStageProps {
   onOpenSwitcher: () => void;
   onUpdateSet: (patch: Partial<PlannedSet>) => void;
   onCompleteSet: () => void;
+  onCompleteExercise: () => void;
   onSkipSet: () => void;
 }
 
@@ -42,6 +43,7 @@ export function ActiveExerciseStage({
   onOpenSwitcher,
   onUpdateSet,
   onCompleteSet,
+  onCompleteExercise,
   onSkipSet,
 }: ActiveExerciseStageProps) {
   const catalog = exercise.exercise_catalog;
@@ -51,6 +53,7 @@ export function ActiveExerciseStage({
   if (!currentSet) return null;
 
   const doneCount = sets.filter((s) => completedKeys.has(setKey(exercise.id, s.set_number))).length;
+  const remainingCount = sets.length - doneCount;
   const steps = parseInstructionSteps(catalog?.instructions ?? "");
   const instruction =
     steps[(currentSet.set_number - 1) % Math.max(steps.length, 1)] ??
@@ -60,7 +63,7 @@ export function ActiveExerciseStage({
   return (
     <div className="fixed inset-0 z-[70] flex h-dvh flex-col overflow-hidden bg-background">
       <header className="shrink-0 border-b border-border px-4 py-2 pt-safe">
-        <div className="mb-1.5 flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-3">
           <button type="button" onClick={onExit} className="rounded-full p-2 text-muted active:scale-[0.98]">
             <X size={20} />
           </button>
@@ -73,33 +76,45 @@ export function ActiveExerciseStage({
             <LayoutGrid size={20} />
           </button>
         </div>
-        <p className="grok-label truncate">{flow.name}</p>
-        <FlowThread flow={flow} activeIndex={exerciseIndex} compact />
+        <div className="mt-1.5 flex flex-col items-center text-center">
+          <p className="grok-label max-w-full truncate">{flow.name}</p>
+          <FlowThread flow={flow} activeIndex={exerciseIndex} compact className="justify-center" />
+        </div>
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col px-4 pt-2">
-        <div className="shrink-0">
+      <div className="flex min-h-0 flex-1 flex-col px-4">
+        <div className="flex shrink-0 justify-center pt-3">
           {catalog ? (
             <ExerciseMedia
               exercise={catalog}
               session
-              className="mx-auto aspect-square w-full max-w-[11rem]"
+              className="aspect-square w-full max-w-[min(72vw,15.5rem)]"
             />
           ) : (
-            <div className="mx-auto aspect-square w-full max-w-[11rem] rounded-2xl border border-border bg-surface-muted" />
+            <div className="aspect-square w-full max-w-[min(72vw,15.5rem)] rounded-2xl border border-border bg-surface-muted" />
           )}
         </div>
 
-        <div className="mt-2 min-h-0 shrink-0">
+        <div className="my-auto flex min-h-0 shrink-0 flex-col items-center px-1 pt-4 text-center">
           <h1 className="line-clamp-2 text-lg font-semibold leading-tight tracking-tight">
             {exercise.name}
           </h1>
-          <p className="mt-0.5 text-xs text-muted">
+          <p className="mt-1 text-xs text-muted">
             Serie {currentSet.set_number} de {sets.length} · {doneCount} completadas
           </p>
+          {remainingCount > 1 && (
+            <button
+              type="button"
+              onClick={onCompleteExercise}
+              className="mt-2 inline-flex items-center gap-1 rounded-full border border-border bg-surface px-2.5 py-1 text-[10px] text-secondary active:scale-[0.98]"
+            >
+              <CheckCheck size={12} />
+              Completar ejercicio ({remainingCount} series)
+            </button>
+          )}
 
           {catalog && (
-            <div className="mt-1.5 flex flex-wrap gap-1.5 text-[10px]">
+            <div className="mt-2 flex flex-wrap justify-center gap-1.5 text-[10px]">
               <Chip accent>{catalog.muscle_group}</Chip>
               {catalog.muscle_subgroup && <Chip>{catalog.muscle_subgroup}</Chip>}
               <Chip muted>{EXERCISE_TYPE_LABELS[catalog.exercise_type] ?? catalog.exercise_type}</Chip>
@@ -110,11 +125,15 @@ export function ActiveExerciseStage({
           )}
 
           {catalog?.equipment?.length ? (
-            <p className="mt-1 truncate text-xs text-secondary">{formatEquipment(catalog.equipment)}</p>
+            <p className="mt-1.5 max-w-full truncate text-xs text-secondary">
+              {formatEquipment(catalog.equipment)}
+            </p>
           ) : null}
 
           {instruction && (
-            <p className="mt-1.5 line-clamp-2 text-xs leading-snug text-secondary">{instruction}</p>
+            <p className="mt-1.5 line-clamp-2 max-w-sm text-xs leading-snug text-secondary">
+              {instruction}
+            </p>
           )}
 
           <SetProgressDots
@@ -125,7 +144,7 @@ export function ActiveExerciseStage({
           />
         </div>
 
-        <div className="mt-auto shrink-0 pb-2 pt-2">
+        <div className="shrink-0 pb-2 pt-1">
           {timeBased ? (
             <div className="grid grid-cols-2 gap-2">
               <MetricField
@@ -246,7 +265,7 @@ function SetProgressDots({
   exerciseId: string;
 }) {
   return (
-    <div className="mt-2 flex items-center justify-center gap-1.5">
+    <div className="mt-2.5 flex items-center justify-center gap-1.5">
       {sets.map((set, i) => {
         const done = completedKeys.has(setKey(exerciseId, set.set_number));
         const active = i === activeIndex;

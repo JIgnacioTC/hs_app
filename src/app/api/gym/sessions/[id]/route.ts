@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/utils/supabase/server";
 import { requireAuth, jsonError } from "@/lib/api-helpers";
+import { createWorkoutPostForSession } from "@/lib/social/workout-post";
 
 export async function GET(
   _request: Request,
@@ -54,6 +55,10 @@ export async function PATCH(
 
   if (dbError) {
     return NextResponse.json({ error: dbError.message }, { status: 500 });
+  }
+
+  if (body.status === "completed") {
+    await createWorkoutPostForSession(supabase, id, user!.id);
   }
 
   return NextResponse.json(data);

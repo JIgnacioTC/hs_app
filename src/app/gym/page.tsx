@@ -16,6 +16,8 @@ import { api } from "@/lib/api-client";
 import type { Flow, FlowDraftStep } from "@/lib/gym/flow";
 import type { GymSession } from "@/lib/types";
 import type { PlannedSet } from "@/lib/gym/sets";
+import { buildCurrentWeekStats } from "@/lib/gym/week-chart";
+import { localDateKey } from "@/lib/utils";
 
 interface ActiveSession {
   session: GymSession;
@@ -126,14 +128,13 @@ export default function GymPage() {
     setActive(null);
   }
 
-  const weekDots = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() - (6 - i));
-    const key = d.toISOString().split("T")[0];
-    return sessions.some(
-      (s) => s.completed_at && s.completed_at.startsWith(key)
-    );
-  });
+  const weekDays = buildCurrentWeekStats(
+    new Set(
+      sessions
+        .filter((s) => s.status === "completed" && s.completed_at)
+        .map((s) => localDateKey(s.completed_at!))
+    )
+  );
 
   if (forging) {
     return <FlowForge onSave={createFlow} onCancel={() => setForging(false)} />;
@@ -180,13 +181,16 @@ export default function GymPage() {
           <Card className="mb-6 p-4">
             <p className="grok-label mb-3">Esta semana</p>
             <div className="flex justify-between gap-2">
-              {weekDots.map((done, i) => (
-                <div key={i} className="flex flex-1 flex-col items-center gap-2">
+              {weekDays.map(({ done, label, isToday, isFuture }, i) => (
+                <div key={i} className="flex flex-1 flex-col items-center gap-1.5">
                   <div
                     className={`h-8 w-full max-w-[2rem] rounded-full transition-colors ${
-                      done ? "bg-accent" : "bg-surface-muted"
-                    }`}
+                      done ? "bg-accent" : isFuture ? "bg-surface-muted/40" : "bg-surface-muted"
+                    } ${isToday ? "ring-1 ring-accent/40" : ""}`}
                   />
+                  <span className={`text-[10px] ${isToday ? "text-accent" : "text-muted"}`}>
+                    {label}
+                  </span>
                 </div>
               ))}
             </div>
