@@ -1,3 +1,5 @@
+import { gifDatasetPathToR2Key, r2GifPublicUrl } from "@/lib/gym/exercise-dataset/r2";
+
 /** Primary CDN (hasaneyldrm/exercises-dataset via jsDelivr). */
 export const DATASET_CDN_BASE =
   "https://cdn.jsdelivr.net/gh/hasaneyldrm/exercises-dataset@main";
@@ -6,7 +8,7 @@ export const DATASET_CDN_BASE =
 export const DATASET_GITHUB_RAW_BASE =
   "https://raw.githubusercontent.com/hasaneyldrm/exercises-dataset/main";
 
-export type ExerciseMediaProvider = "supabase" | "cdn";
+export type ExerciseMediaProvider = "supabase" | "cdn" | "r2";
 
 /** Images default to CDN; set NEXT_PUBLIC_EXERCISE_MEDIA_PROVIDER=supabase to use Storage. */
 export function getExerciseMediaProvider(): ExerciseMediaProvider {
@@ -15,11 +17,13 @@ export function getExerciseMediaProvider(): ExerciseMediaProvider {
   return "cdn";
 }
 
-/** GIFs are large; default CDN unless NEXT_PUBLIC_EXERCISE_GIF_PROVIDER=supabase */
+/** GIFs: R2 when public URL is set, else CDN unless NEXT_PUBLIC_EXERCISE_GIF_PROVIDER overrides. */
 export function getGifMediaProvider(): ExerciseMediaProvider {
   const configured = process.env.NEXT_PUBLIC_EXERCISE_GIF_PROVIDER;
+  if (configured === "r2") return "r2";
   if (configured === "cdn") return "cdn";
   if (configured === "supabase") return "supabase";
+  if (process.env.NEXT_PUBLIC_R2_GIF_PUBLIC_URL?.trim()) return "r2";
   return "cdn";
 }
 
@@ -77,13 +81,18 @@ export function datasetMediaUrl(relativePath: string | null | undefined): string
   return urls[0] ?? null;
 }
 
-/** Ordered candidates: optional Supabase, then jsDelivr, then GitHub raw. */
+/** Ordered candidates: R2/Supabase (if configured), then jsDelivr, then GitHub raw. */
 export function datasetMediaUrls(relativePath: string | null | undefined): string[] {
   if (!relativePath?.trim()) return [];
 
   const path = relativePath.replace(/^\//, "");
   const provider = providerForPath(path);
   const urls: string[] = [];
+
+  if (provider === "r2") {
+    const r2Url = r2GifPublicUrl(gifDatasetPathToR2Key(path));
+    if (r2Url) urls.push(r2Url);
+  }
 
   if (provider === "supabase") {
     const resolved = resolveDatasetStoragePath(relativePath);

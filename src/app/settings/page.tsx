@@ -8,6 +8,7 @@ import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/Button";
 import { Input, Label, Textarea } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
+import { AdminExerciseGifUploadPanel } from "@/components/settings/AdminExerciseGifUploadPanel";
 import { AdminExerciseImportPanel } from "@/components/settings/AdminExerciseImportPanel";
 import { SettingsTabs, type SettingsTab } from "@/components/settings/SettingsTabs";
 import { api, subscribeToPush, unsubscribeFromPush } from "@/lib/api-client";
@@ -127,7 +128,10 @@ export default function SettingsPage() {
       <SettingsTabs active={tab} onChange={setTab} showAdmin={isAdmin} />
 
       {tab === "admin" && isAdmin ? (
-        <AdminExerciseImportPanel />
+        <div className="space-y-8">
+          <AdminExerciseGifUploadPanel />
+          <AdminExerciseImportPanel />
+        </div>
       ) : (
         <>
           <section className="mb-8">
