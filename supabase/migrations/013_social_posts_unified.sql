@@ -110,6 +110,8 @@ drop policy if exists "Read own and friends posts" on public.social_posts;
 drop policy if exists "Insert own posts" on public.social_posts;
 drop policy if exists "Read visible social posts" on public.social_posts;
 drop policy if exists "Insert own social posts" on public.social_posts;
+drop policy if exists "Insert own root posts" on public.social_posts;
+drop policy if exists "Insert own replies" on public.social_posts;
 drop policy if exists "Delete own social posts" on public.social_posts;
 
 drop policy if exists "Read likes on visible posts" on public.social_post_likes;
@@ -119,13 +121,17 @@ drop policy if exists "Delete own likes" on public.social_post_likes;
 create policy "Read visible social posts" on public.social_posts
   for select using (public.can_view_social_post(id));
 
-create policy "Insert own social posts" on public.social_posts
+create policy "Insert own root posts" on public.social_posts
   for insert with check (
     auth.uid() = user_id
-    and (
-      parent_id is null
-      or public.can_view_social_post(parent_id)
-    )
+    and parent_id is null
+  );
+
+create policy "Insert own replies" on public.social_posts
+  for insert with check (
+    auth.uid() = user_id
+    and parent_id is not null
+    and public.can_view_social_post(parent_id)
   );
 
 create policy "Delete own social posts" on public.social_posts

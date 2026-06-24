@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, Heart, MessageCircle, Send, X } from "lucide-react";
+import { createPortal } from "react-dom";
+import { ArrowLeft, Heart, Send, X } from "lucide-react";
 import { Card } from "@/components/ui/Card";
-import { Input } from "@/components/ui/Input";
+import { Textarea } from "@/components/ui/Input";
 import { api } from "@/lib/api-client";
 import type { SocialPost, SocialThread } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -26,13 +27,23 @@ interface ThreadSheetProps {
   onReplyAdded: (rootId: string) => void;
 }
 
+function getPortalRoot(): HTMLElement | null {
+  const g = globalThis as typeof globalThis & { document?: { body: HTMLElement | null } };
+  return g.document?.body ?? null;
+}
+
 export function ThreadSheet({ postId, onClose, onLikeToggle, onReplyAdded }: ThreadSheetProps) {
+  const [mounted, setMounted] = useState(false);
   const [thread, setThread] = useState<SocialThread | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [replyDraft, setReplyDraft] = useState("");
   const [replyTo, setReplyTo] = useState<SocialPost | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -94,9 +105,12 @@ export function ThreadSheet({ postId, onClose, onLikeToggle, onReplyAdded }: Thr
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-background">
-      <header className="flex items-center gap-3 border-b border-border px-4 py-3">
+  const portalTarget = getPortalRoot();
+  if (!mounted || !portalTarget) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex h-dvh max-h-dvh w-full flex-col bg-background">
+      <header className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-3 pt-safe">
         <button type="button" onClick={onClose} className="rounded-full p-2 text-muted hover:bg-surface-muted">
           <ArrowLeft size={20} />
         </button>
@@ -110,13 +124,13 @@ export function ThreadSheet({ postId, onClose, onLikeToggle, onReplyAdded }: Thr
         </button>
       </header>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
         {loading && <div className="h-40 animate-pulse rounded-[20px] bg-surface-muted" />}
         {error && !loading && (
           <Card className="p-4 text-center text-sm text-danger">{error}</Card>
         )}
         {thread && (
-          <div className="space-y-0">
+          <div className="space-y-0 pb-4">
             <article className="border-b border-border pb-4">
               <PostHeader post={thread.post} />
               <PostCardBody post={thread.post} className="mt-2" />
@@ -156,7 +170,7 @@ export function ThreadSheet({ postId, onClose, onLikeToggle, onReplyAdded }: Thr
       </div>
 
       {thread && (
-        <div className="border-t border-border bg-background p-4">
+        <div className="shrink-0 border-t border-border bg-background p-4 safe-bottom">
           {replyTo && replyTo.id !== thread.post.id && (
             <p className="mb-2 text-xs text-muted">
               Respondiendo a <span className="text-accent">{replyTo.author_name}</span>
@@ -165,30 +179,27 @@ export function ThreadSheet({ postId, onClose, onLikeToggle, onReplyAdded }: Thr
               </button>
             </p>
           )}
-          <div className="flex gap-2">
-            <Input
+          <div className="flex items-end gap-2">
+            <Textarea
               placeholder="Escribe una respuesta…"
               value={replyDraft}
+              rows={2}
+              className="min-h-[2.75rem] py-2"
               onChange={(e) => setReplyDraft(e.currentTarget.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  void submitReply();
-                }
-              }}
             />
             <button
               type="button"
               disabled={!replyDraft.trim() || submitting}
               onClick={() => void submitReply()}
-              className="shrink-0 rounded-xl border border-border px-3 text-muted disabled:opacity-40"
+              className="mb-0.5 shrink-0 rounded-xl border border-border px-3 py-3 text-muted disabled:opacity-40"
             >
               <Send size={16} />
             </button>
           </div>
         </div>
       )}
-    </div>
+    </div>,
+    portalTarget
   );
 }
 

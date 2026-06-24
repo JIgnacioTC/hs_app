@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/utils/supabase/server";
 import { requireAuth } from "@/lib/api-helpers";
 import { getDisplayName, notifyUserPush } from "@/lib/social/push-notify";
+import { getSocialAdminClient } from "@/lib/social/server-write";
 
 function postPreview(post: { kind: string; body: string | null; routine_name: string | null }) {
   if (post.kind === "workout") return post.routine_name ?? "Entrenamiento";
@@ -17,6 +18,7 @@ export async function POST(
 
   const { id: postId } = await params;
   const supabase = await getSupabaseServerClient();
+  const admin = getSocialAdminClient();
 
   const { data: post, error: postError } = await supabase
     .from("social_posts")
@@ -28,7 +30,7 @@ export async function POST(
     return NextResponse.json({ error: "Publicación no encontrada" }, { status: 404 });
   }
 
-  const { data: existing } = await supabase
+  const { data: existing } = await admin
     .from("social_post_likes")
     .select("id")
     .eq("post_id", postId)
@@ -36,17 +38,14 @@ export async function POST(
     .maybeSingle();
 
   if (existing) {
-    const { error: deleteError } = await supabase
-      .from("social_post_likes")
-      .delete()
-      .eq("id", existing.id);
+    const { error: deleteError } = await admin.from("social_post_likes").delete().eq("id", existing.id);
     if (deleteError) {
       return NextResponse.json({ error: deleteError.message }, { status: 500 });
     }
     return NextResponse.json({ liked: false });
   }
 
-  const { error: insertError } = await supabase.from("social_post_likes").insert({
+  const { error: insertError } = await admin.from("social_post_likes").insert({
     post_id: postId,
     user_id: user!.id,
   });

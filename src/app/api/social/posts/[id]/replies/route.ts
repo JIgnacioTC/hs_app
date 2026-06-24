@@ -3,6 +3,7 @@ import { getSupabaseServerClient } from "@/utils/supabase/server";
 import { requireAuth, jsonError } from "@/lib/api-helpers";
 import { enrichPosts, type SocialPostRow } from "@/lib/social/posts";
 import { getDisplayName, notifyUserPush } from "@/lib/social/push-notify";
+import { getSocialAdminClient } from "@/lib/social/server-write";
 
 function threadRootId(post: { id: string; root_id: string | null; parent_id: string | null }) {
   return post.root_id ?? post.parent_id ?? post.id;
@@ -74,7 +75,8 @@ export async function POST(
 
   const rootId = threadRootId(target as SocialPostRow);
 
-  const { data, error: dbError } = await supabase
+  const admin = getSocialAdminClient();
+  const { data, error: dbError } = await admin
     .from("social_posts")
     .insert({
       user_id: user!.id,

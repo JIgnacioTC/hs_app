@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/utils/supabase/admin";
 
 export async function createWorkoutPostForSession(
   supabase: SupabaseClient,
@@ -43,7 +44,7 @@ export async function createWorkoutPostForSession(
 
   if (existing) return existing;
 
-  const { data, error } = await supabase
+  const { data, error } = await createAdminClient()
     .from("social_posts")
     .insert({
       user_id: userId,
