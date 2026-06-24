@@ -14,7 +14,8 @@ export interface PlannedSet {
 export interface SetLog {
   id: string;
   session_id: string;
-  gym_exercise_id: string;
+  user_id: string;
+  gym_exercise_id: string | null;
   exercise_catalog_id: string | null;
   set_number: number;
   reps: number | null;
@@ -22,6 +23,7 @@ export interface SetLog {
   weight_kg: number | null;
   rir: number | null;
   rest_seconds_used: number | null;
+  skipped?: boolean;
   completed_at: string;
 }
 
@@ -84,6 +86,12 @@ export interface ExerciseHistory {
   catalog_id: string;
   exercise_name: string;
   points: HistoryPoint[];
-  personal_record: { weight_kg: number | null; reps: number | null; date: string } | null;
+  personal_record: { weight_kg: number | null; reps: number | null; date: string; volume?: number } | null;
+  last_set: {
+    reps: number | null;
+    weight_kg: number | null;
+    duration_seconds: number | null;
+    rir: number | null;
+  } | null;
   total_sessions: number;
 }

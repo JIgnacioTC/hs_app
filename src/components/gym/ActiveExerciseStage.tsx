@@ -4,6 +4,7 @@ import { Check, CheckCheck, LayoutGrid, SkipForward, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { ExerciseMedia } from "@/components/gym/ExerciseMedia";
 import { FlowThread } from "@/components/gym/FlowThread";
+import { WorkSetTimer } from "@/components/gym/WorkSetTimer";
 import { EXECUTION_MODE_LABELS, EXERCISE_TYPE_LABELS, formatEquipment } from "@/lib/gym/catalog-labels";
 import { parseInstructionSteps } from "@/lib/gym/instructions";
 import type { Flow } from "@/lib/gym/flow";
@@ -25,6 +26,8 @@ interface ActiveExerciseStageProps {
   onCompleteSet: () => void;
   onCompleteExercise: () => void;
   onSkipSet: () => void;
+  timeBased?: boolean;
+  onWorkTimerComplete?: (seconds: number) => void;
 }
 
 function setKey(exerciseId: string, setNumber: number) {
@@ -45,10 +48,12 @@ export function ActiveExerciseStage({
   onCompleteSet,
   onCompleteExercise,
   onSkipSet,
+  timeBased: timeBasedProp,
+  onWorkTimerComplete,
 }: ActiveExerciseStageProps) {
   const catalog = exercise.exercise_catalog;
   const currentSet = sets[setIndex];
-  const timeBased = isTimeBased(catalog?.execution_mode);
+  const timeBased = timeBasedProp ?? isTimeBased(catalog?.execution_mode);
 
   if (!currentSet) return null;
 
@@ -146,19 +151,27 @@ export function ActiveExerciseStage({
 
         <div className="shrink-0 pb-2 pt-1">
           {timeBased ? (
-            <div className="grid grid-cols-2 gap-2">
-              <MetricField
-                label="Segundos"
-                value={currentSet.target_seconds ?? ""}
-                onChange={(v) => onUpdateSet({ target_seconds: v ? Number(v) : null })}
-              />
-              <MetricField
-                label="Descanso"
-                value={currentSet.rest_seconds}
-                suffix="s"
-                onChange={(v) => onUpdateSet({ rest_seconds: Number(v) || 60 })}
-              />
-            </div>
+            <>
+              <div className="grid grid-cols-2 gap-2">
+                <MetricField
+                  label="Segundos"
+                  value={currentSet.target_seconds ?? ""}
+                  onChange={(v) => onUpdateSet({ target_seconds: v ? Number(v) : null })}
+                />
+                <MetricField
+                  label="Descanso"
+                  value={currentSet.rest_seconds}
+                  suffix="s"
+                  onChange={(v) => onUpdateSet({ rest_seconds: Number(v) || 60 })}
+                />
+              </div>
+              {onWorkTimerComplete && (
+                <WorkSetTimer
+                  targetSeconds={currentSet.target_seconds ?? 45}
+                  onComplete={onWorkTimerComplete}
+                />
+              )}
+            </>
           ) : (
             <div className="grid grid-cols-2 gap-2">
               <MetricField

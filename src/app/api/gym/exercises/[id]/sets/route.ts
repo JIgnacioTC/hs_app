@@ -1,32 +1,8 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/utils/supabase/server";
 import { requireAuth, jsonError } from "@/lib/api-helpers";
+import { savePlannedSetsForExercise } from "@/lib/gym/routine-mutations";
 import type { PlannedSet } from "@/lib/gym/sets";
-
-async function savePlannedSets(
-  supabase: Awaited<ReturnType<typeof getSupabaseServerClient>>,
-  userId: string,
-  gymExerciseId: string,
-  sets: PlannedSet[]
-) {
-  await supabase.from("gym_planned_sets").delete().eq("gym_exercise_id", gymExerciseId);
-
-  if (!sets.length) return;
-
-  const rows = sets.map((s) => ({
-    gym_exercise_id: gymExerciseId,
-    user_id: userId,
-    set_number: s.set_number,
-    target_reps: s.target_reps,
-    target_seconds: s.target_seconds,
-    target_weight_kg: s.target_weight_kg,
-    target_rir: s.target_rir,
-    rest_seconds: s.rest_seconds,
-  }));
-
-  const { error } = await supabase.from("gym_planned_sets").insert(rows);
-  if (error) throw new Error(error.message);
-}
 
 export async function GET(
   _request: Request,
@@ -60,8 +36,14 @@ export async function PUT(
   if (error) return error;
 
   const { id } = await params;
-  const { sets } = (await request.json()) as { sets: PlannedSet[] };
+  let body: { sets?: PlannedSet[] };
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError("JSON inválido");
+  }
 
+  const { sets } = body;
   if (!Array.isArray(sets)) return jsonError("sets requerido");
 
   const supabase = await getSupabaseServerClient();
@@ -76,7 +58,7 @@ export async function PUT(
   if (!exercise) return jsonError("Ejercicio no encontrado", 404);
 
   try {
-    await savePlannedSets(supabase, user!.id, id, sets);
+    await savePlannedSetsForExercise(supabase, user!.id, id, sets);
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }

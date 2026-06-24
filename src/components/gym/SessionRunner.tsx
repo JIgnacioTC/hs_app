@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ActiveExerciseStage } from "@/components/gym/ActiveExerciseStage";
 import { RestTimer } from "@/components/gym/RestTimer";
 import { ExerciseHistorySheet } from "@/components/gym/ExerciseHistorySheet";
@@ -10,7 +11,13 @@ import { SetPlanEditor } from "@/components/gym/SetPlanEditor";
 import { api } from "@/lib/api-client";
 import { stepsOf } from "@/lib/gym/flow";
 import type { Flow } from "@/lib/gym/flow";
-import { isTimeBased, type ExerciseHistory, type PlannedSet } from "@/lib/gym/sets";
+import {
+  applyLogsToPlannedMap,
+  completedSetKeys,
+  resumePosition,
+  setKey,
+} from "@/lib/gym/session-resume";
+import { isTimeBased, type ExerciseHistory, type PlannedSet, type SetLog } from "@/lib/gym/sets";
 import { ensureNotificationPermission, showLocalNotification } from "@/lib/notifications";
 import type { GymSession } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -18,26 +25,32 @@ import { cn } from "@/lib/utils";
 interface SessionRunnerProps {
   session: GymSession;
   flow: Flow;
+  initialLogs?: SetLog[];
   onComplete: () => Promise<void>;
-  onExit: () => void;
+  onPause: () => void;
+  onAbandon: () => void;
 }
 
-function setKey(exerciseId: string, setNumber: number) {
-  return `${exerciseId}-${setNumber}`;
-}
-
-export function SessionRunner({ session, flow, onComplete, onExit }: SessionRunnerProps) {
+export function SessionRunner({
+  session,
+  flow,
+  initialLogs = [],
+  onComplete,
+  onPause,
+  onAbandon,
+}: SessionRunnerProps) {
   const exercises = useMemo(() => stepsOf(flow), [flow]);
-  const [exerciseIndex, setExerciseIndex] = useState(0);
-  const [setIndex, setSetIndex] = useState(0);
-  const [plannedMap, setPlannedMap] = useState<Record<string, PlannedSet[]>>(() => {
-    const map: Record<string, PlannedSet[]> = {};
-    for (const ex of exercises) {
-      map[ex.id] = (ex.gym_planned_sets ?? []).sort((a, b) => a.set_number - b.set_number);
-    }
-    return map;
-  });
-  const [completed, setCompleted] = useState<Set<string>>(new Set());
+  const resume = useMemo(
+    () => resumePosition(flow, initialLogs),
+    [flow, initialLogs]
+  );
+
+  const [exerciseIndex, setExerciseIndex] = useState(resume.exerciseIndex);
+  const [setIndex, setSetIndex] = useState(resume.setIndex);
+  const [plannedMap, setPlannedMap] = useState<Record<string, PlannedSet[]>>(() =>
+    applyLogsToPlannedMap(flow, initialLogs)
+  );
+  const [completed, setCompleted] = useState<Set<string>>(() => completedSetKeys(initialLogs));
   const [mode, setMode] = useState<"work" | "rest">("work");
   const [restSeconds, setRestSeconds] = useState(0);
   const [showSwitcher, setShowSwitcher] = useState(false);
@@ -46,7 +59,11 @@ export function SessionRunner({ session, flow, onComplete, onExit }: SessionRunn
   const [editSets, setEditSets] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [finishing, setFinishing] = useState(false);
+  const [confirmExit, setConfirmExit] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const sessionStarted = useRef(false);
+  const lastRestUsedRef = useRef<number | null>(null);
+  const prefillRef = useRef<Set<string>>(new Set());
 
   const exercise = exercises[exerciseIndex];
   const sets = exercise ? plannedMap[exercise.id] ?? [] : [];
@@ -66,6 +83,38 @@ export function SessionRunner({ session, flow, onComplete, onExit }: SessionRunn
     sessionStarted.current = true;
     void ensureNotificationPermission();
   }, []);
+
+  useEffect(() => {
+    if (!exercise?.exercise_catalog_id) return;
+    const key = exercise.exercise_catalog_id;
+    if (prefillRef.current.has(key)) return;
+    prefillRef.current.add(key);
+
+    void (async () => {
+      try {
+        const data = await api.get<ExerciseHistory>(`/api/gym/history/${key}`);
+        if (!data.last_set) return;
+        setPlannedMap((prev) => {
+          const current = prev[exercise.id];
+          if (!current?.length) return prev;
+          const hasLogged = current.some((s) => completed.has(setKey(exercise.id, s.set_number)));
+          if (hasLogged) return prev;
+          return {
+            ...prev,
+            [exercise.id]: current.map((s) => ({
+              ...s,
+              target_reps: data.last_set?.reps ?? s.target_reps,
+              target_weight_kg: data.last_set?.weight_kg ?? s.target_weight_kg,
+              target_seconds: data.last_set?.duration_seconds ?? s.target_seconds,
+              target_rir: data.last_set?.rir ?? s.target_rir,
+            })),
+          };
+        });
+      } catch {
+        /* optional prefill */
+      }
+    })();
+  }, [exercise?.id, exercise?.exercise_catalog_id, completed]);
 
   const formatElapsed = (s: number) => {
     const m = Math.floor(s / 60);
@@ -90,17 +139,7 @@ export function SessionRunner({ session, flow, onComplete, onExit }: SessionRunn
         ? exercises[exerciseIndex + 1]?.name ?? "Siguiente"
         : "Finalizar";
 
-  const advanceAfterRest = useCallback(() => {
-    setMode("work");
-    if (setIndex < sets.length - 1) {
-      setSetIndex((i) => i + 1);
-      return;
-    }
-    if (exerciseIndex < exercises.length - 1) {
-      setExerciseIndex((i) => i + 1);
-      setSetIndex(0);
-      return;
-    }
+  const finishSession = useCallback(() => {
     setFinishing(true);
     void showLocalNotification("¡Sesión completa!", {
       body: `${flow.name} · ${formatElapsed(elapsed)}`,
@@ -108,12 +147,28 @@ export function SessionRunner({ session, flow, onComplete, onExit }: SessionRunn
       url: "/gym",
     });
     setTimeout(() => void onComplete(), 1200);
-  }, [setIndex, sets.length, exerciseIndex, exercises.length, flow.name, elapsed, onComplete]);
+  }, [flow.name, elapsed, onComplete]);
+
+  const advanceAfterRest = useCallback(
+    (secondsUsed: number) => {
+      lastRestUsedRef.current = secondsUsed;
+      setMode("work");
+      if (setIndex < sets.length - 1) {
+        setSetIndex((i) => i + 1);
+        return;
+      }
+      if (exerciseIndex < exercises.length - 1) {
+        setExerciseIndex((i) => i + 1);
+        setSetIndex(0);
+        return;
+      }
+      finishSession();
+    },
+    [setIndex, sets.length, exerciseIndex, exercises.length, finishSession]
+  );
 
   const advanceWithoutRest = useCallback(() => {
     if (!exercise || !currentSet) return;
-
-    setCompleted((prev) => new Set(prev).add(setKey(exercise.id, currentSet.set_number)));
 
     if (setIndex < sets.length - 1) {
       setSetIndex((i) => i + 1);
@@ -124,73 +179,74 @@ export function SessionRunner({ session, flow, onComplete, onExit }: SessionRunn
       setSetIndex(0);
       return;
     }
-    setFinishing(true);
-    setTimeout(() => void onComplete(), 1200);
-  }, [exercise, currentSet, setIndex, sets.length, exerciseIndex, exercises.length, onComplete]);
+    finishSession();
+  }, [exercise, currentSet, setIndex, sets.length, exerciseIndex, exercises.length, finishSession]);
 
-  async function completeSet() {
-    if (!exercise || !currentSet) return;
+  async function logSet(set: PlannedSet, skipped = false) {
+    if (!exercise) return;
 
     await api.post(`/api/gym/sessions/${session.id}/sets`, {
       gym_exercise_id: exercise.id,
       exercise_catalog_id: exercise.exercise_catalog_id,
-      set_number: currentSet.set_number,
-      reps: timeBased ? null : currentSet.target_reps,
-      duration_seconds: timeBased ? currentSet.target_seconds : null,
-      weight_kg: currentSet.target_weight_kg,
-      rir: currentSet.target_rir,
+      set_number: set.set_number,
+      reps: skipped ? null : timeBased ? null : set.target_reps,
+      duration_seconds: skipped ? null : timeBased ? set.target_seconds : null,
+      weight_kg: skipped ? null : set.target_weight_kg,
+      rir: skipped ? null : set.target_rir,
+      rest_seconds_used: skipped ? null : lastRestUsedRef.current,
+      skipped,
     });
 
-    setCompleted((prev) => new Set(prev).add(setKey(exercise.id, currentSet.set_number)));
-    setRestSeconds(currentSet.rest_seconds);
-    setMode("rest");
+    lastRestUsedRef.current = null;
+    setCompleted((prev) => new Set(prev).add(setKey(exercise.id, set.set_number)));
+  }
+
+  async function completeSet() {
+    if (!exercise || !currentSet) return;
+    setError(null);
+    try {
+      await logSet(currentSet);
+      setRestSeconds(currentSet.rest_seconds);
+      setMode("rest");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo registrar la serie");
+    }
   }
 
   async function completeAllSetsForExercise() {
     if (!exercise) return;
+    setError(null);
 
     const remaining = sets.filter(
       (s) => !completed.has(setKey(exercise.id, s.set_number))
     );
     if (!remaining.length) return;
 
-    for (const set of remaining) {
-      await api.post(`/api/gym/sessions/${session.id}/sets`, {
-        gym_exercise_id: exercise.id,
-        exercise_catalog_id: exercise.exercise_catalog_id,
-        set_number: set.set_number,
-        reps: timeBased ? null : set.target_reps,
-        duration_seconds: timeBased ? set.target_seconds : null,
-        weight_kg: set.target_weight_kg,
-        rir: set.target_rir,
-      });
-    }
-
-    setCompleted((prev) => {
-      const next = new Set(prev);
+    try {
       for (const set of remaining) {
-        next.add(setKey(exercise.id, set.set_number));
+        await logSet(set);
       }
-      return next;
-    });
 
-    if (exerciseIndex < exercises.length - 1) {
-      setExerciseIndex((i) => i + 1);
-      setSetIndex(0);
-      return;
+      if (exerciseIndex < exercises.length - 1) {
+        setExerciseIndex((i) => i + 1);
+        setSetIndex(0);
+        return;
+      }
+      finishSession();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo completar el ejercicio");
     }
-
-    setFinishing(true);
-    void showLocalNotification("¡Sesión completa!", {
-      body: `${flow.name} · ${formatElapsed(elapsed)}`,
-      tag: "gym-session-complete",
-      url: "/gym",
-    });
-    setTimeout(() => void onComplete(), 1200);
   }
 
-  function skipSet() {
-    advanceWithoutRest();
+  async function skipSet() {
+    if (!exercise || !currentSet) return;
+    setError(null);
+    try {
+      await logSet(currentSet, true);
+      advanceWithoutRest();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo omitir la serie");
+    }
   }
 
   async function openHistory() {
@@ -259,7 +315,7 @@ export function SessionRunner({ session, flow, onComplete, onExit }: SessionRunn
     return (
       <div className="fixed inset-0 z-[70] flex items-center justify-center bg-background p-6">
         <p className="text-muted">Sin series configuradas</p>
-        <Button className="mt-4" onClick={onExit}>
+        <Button className="mt-4" onClick={onPause}>
           Salir
         </Button>
       </div>
@@ -268,6 +324,12 @@ export function SessionRunner({ session, flow, onComplete, onExit }: SessionRunn
 
   return (
     <>
+      {error && (
+        <div className="fixed left-4 right-4 top-20 z-[75] rounded-xl bg-danger/10 px-3 py-2 text-xs text-danger">
+          {error}
+        </div>
+      )}
+
       <ActiveExerciseStage
         flow={flow}
         exercise={exercise}
@@ -276,12 +338,31 @@ export function SessionRunner({ session, flow, onComplete, onExit }: SessionRunn
         setIndex={setIndex}
         completedKeys={completed}
         elapsedLabel={formatElapsed(elapsed)}
-        onExit={onExit}
+        timeBased={timeBased}
+        onExit={() => setConfirmExit(true)}
         onOpenSwitcher={() => setShowSwitcher(true)}
         onUpdateSet={updateCurrentSet}
         onCompleteSet={() => void completeSet()}
         onCompleteExercise={() => void completeAllSetsForExercise()}
-        onSkipSet={skipSet}
+        onSkipSet={() => void skipSet()}
+        onWorkTimerComplete={(seconds) => updateCurrentSet({ target_seconds: seconds })}
+      />
+
+      <ConfirmDialog
+        open={confirmExit}
+        title="¿Salir de la sesión?"
+        description="Puedes guardar el progreso y continuar después, o abandonar la sesión."
+        confirmLabel="Abandonar sesión"
+        cancelLabel="Guardar y salir"
+        danger
+        onConfirm={() => {
+          setConfirmExit(false);
+          onAbandon();
+        }}
+        onCancel={() => {
+          setConfirmExit(false);
+          onPause();
+        }}
       />
 
       {showSwitcher && (

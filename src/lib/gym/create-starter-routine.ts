@@ -1,9 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { insertExerciseWithSets } from "@/lib/gym/routine-mutations";
 import {
   STARTER_PLANS,
   type TrainingGoalId,
 } from "@/lib/gym/onboarding";
-import { defaultPlannedSets } from "@/lib/gym/sets";
 import type { ExerciseCatalog } from "@/lib/types";
 
 export async function createStarterRoutine(
@@ -12,6 +12,17 @@ export async function createStarterRoutine(
   goal: TrainingGoalId
 ) {
   const plan = STARTER_PLANS[goal] ?? STARTER_PLANS.general;
+
+  const { data: existing } = await supabase
+    .from("gym_routines")
+    .select("id, name")
+    .eq("user_id", userId)
+    .eq("active", true)
+    .eq("name", plan.name)
+    .maybeSingle();
+
+  if (existing) return existing;
+
   const picked: ExerciseCatalog[] = [];
 
   for (const muscle of plan.muscles) {
@@ -66,38 +77,11 @@ export async function createStarterRoutine(
   }
 
   for (let i = 0; i < picked.length; i++) {
-    const catalog = picked[i];
-    const setsPlan = defaultPlannedSets(catalog);
-
-    const { data: exercise, error: exError } = await supabase
-      .from("gym_exercises")
-      .insert({
-        routine_id: routine.id,
-        user_id: userId,
-        exercise_catalog_id: catalog.id,
-        name: catalog.name,
-        sets: setsPlan.length,
-        reps: catalog.default_prescription,
-        rest_seconds: catalog.rest_seconds,
-        sort_order: i,
-      })
-      .select("id")
-      .single();
-
-    if (exError || !exercise) continue;
-
-    await supabase.from("gym_planned_sets").insert(
-      setsPlan.map((s) => ({
-        gym_exercise_id: exercise.id,
-        user_id: userId,
-        set_number: s.set_number,
-        target_reps: s.target_reps,
-        target_seconds: s.target_seconds,
-        target_weight_kg: s.target_weight_kg,
-        target_rir: s.target_rir,
-        rest_seconds: s.rest_seconds,
-      }))
-    );
+    try {
+      await insertExerciseWithSets(supabase, userId, routine.id, picked[i], i);
+    } catch {
+      /* skip failed exercise */
+    }
   }
 
   return routine;

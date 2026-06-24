@@ -4,7 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import { Activity, Calendar, ChevronRight } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { ExerciseDetail } from "@/components/gym/ExerciseDetail";
+import { SessionDetailSheet } from "@/components/gym/SessionDetailSheet";
 import { api } from "@/lib/api-client";
+import type { SetLog } from "@/lib/gym/sets";
 import type { ExerciseCatalog, GymSession } from "@/lib/types";
 
 interface ExerciseActivityStat {
@@ -22,10 +24,16 @@ interface HistorySummary {
   exercise_stats: ExerciseActivityStat[];
 }
 
+type SessionDetail = GymSession & {
+  gym_routines?: { name?: string; gym_exercises?: Array<{ id: string; name: string }> };
+  set_logs?: SetLog[];
+};
+
 export function WorkoutHistoryPanel() {
   const [summary, setSummary] = useState<HistorySummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedExercise, setSelectedExercise] = useState<ExerciseCatalog | null>(null);
+  const [selectedSession, setSelectedSession] = useState<SessionDetail | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -35,8 +43,19 @@ export function WorkoutHistoryPanel() {
   }, []);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
+
+  async function openSession(sessionId: string) {
+    const detail = await api.get<SessionDetail>(`/api/gym/sessions/${sessionId}`);
+    setSelectedSession(detail);
+  }
+
+  if (selectedSession) {
+    return (
+      <SessionDetailSheet session={selectedSession} onClose={() => setSelectedSession(null)} />
+    );
+  }
 
   if (selectedExercise) {
     return (
@@ -88,24 +107,32 @@ export function WorkoutHistoryPanel() {
                   : null;
 
               return (
-                <Card key={session.id} className="flex items-center gap-3 p-4">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/10">
-                    <Calendar size={18} className="text-accent-soft" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium">
-                      {session.gym_routines?.name ?? "Sesión"}
-                    </p>
-                    <p className="text-xs text-muted">
-                      {date.toLocaleDateString("es-ES", {
-                        weekday: "short",
-                        day: "numeric",
-                        month: "short",
-                      })}
-                      {duration != null ? ` · ${duration} min` : ""}
-                    </p>
-                  </div>
-                </Card>
+                <button
+                  key={session.id}
+                  type="button"
+                  onClick={() => void openSession(session.id)}
+                  className="w-full text-left"
+                >
+                  <Card className="flex items-center gap-3 p-4 transition-colors hover:border-accent-soft/30">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/10">
+                      <Calendar size={18} className="text-accent-soft" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium">
+                        {session.gym_routines?.name ?? "Sesión"}
+                      </p>
+                      <p className="text-xs text-muted">
+                        {date.toLocaleDateString("es-ES", {
+                          weekday: "short",
+                          day: "numeric",
+                          month: "short",
+                        })}
+                        {duration != null ? ` · ${duration} min` : ""}
+                      </p>
+                    </div>
+                    <ChevronRight size={16} className="shrink-0 text-muted" />
+                  </Card>
+                </button>
               );
             })}
           </div>

@@ -7,7 +7,7 @@ import { showLocalNotification } from "@/lib/notifications";
 
 interface RestTimerProps {
   initialSeconds: number;
-  onFinish: () => void;
+  onFinish: (secondsUsed: number) => void;
   exerciseName: string;
   nextLabel: string;
   flowName?: string;
@@ -21,12 +21,14 @@ export function RestTimer({
   flowName,
 }: RestTimerProps) {
   const [seconds, setSeconds] = useState(initialSeconds);
+  const plannedSeconds = useRef(initialSeconds);
   const finished = useRef(false);
   const warned10 = useRef(false);
   const onFinishRef = useRef(onFinish);
   onFinishRef.current = onFinish;
 
   useEffect(() => {
+    plannedSeconds.current = initialSeconds;
     finished.current = false;
     warned10.current = false;
     setSeconds(initialSeconds);
@@ -45,7 +47,7 @@ export function RestTimer({
               body: nextLabel,
               tag: "gym-rest-end",
               url: "/gym",
-            }).finally(() => onFinishRef.current());
+            }).finally(() => onFinishRef.current(plannedSeconds.current));
           }
           return 0;
         }
@@ -59,7 +61,8 @@ export function RestTimer({
   function skip() {
     if (!finished.current) {
       finished.current = true;
-      onFinishRef.current();
+      const used = Math.max(0, plannedSeconds.current - seconds);
+      onFinishRef.current(used);
     }
   }
 

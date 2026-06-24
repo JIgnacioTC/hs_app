@@ -35,7 +35,7 @@ export async function POST(request: Request) {
 
   await supabase
     .from("gym_sessions")
-    .update({ status: "abandoned" })
+    .update({ status: "abandoned", completed_at: new Date().toISOString() })
     .eq("user_id", user!.id)
     .eq("status", "active");
 

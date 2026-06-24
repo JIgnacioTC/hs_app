@@ -1,14 +1,26 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/utils/supabase/server";
 import { requireAuth, jsonError } from "@/lib/api-helpers";
-import { defaultPlannedSets } from "@/lib/gym/sets";
-import { withExerciseMedia, withNestedExerciseMedia } from "@/lib/gym/enrich-catalog-response";
+import { withExerciseMedia } from "@/lib/gym/enrich-catalog-response";
+import { insertExerciseWithSets } from "@/lib/gym/routine-mutations";
+import type { PlannedSet } from "@/lib/gym/sets";
 
 export async function POST(request: Request) {
   const { user, error } = await requireAuth();
   if (error) return error;
 
-  const body = await request.json();
+  let body: {
+    routine_id?: string;
+    exercise_catalog_id?: string;
+    sort_order?: number;
+    planned_sets?: PlannedSet[];
+  };
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError("JSON inválido");
+  }
+
   const { routine_id, exercise_catalog_id, sort_order, planned_sets } = body;
 
   if (!routine_id) return jsonError("routine_id requerido");
@@ -24,6 +36,15 @@ export async function POST(request: Request) {
     .single();
 
   if (!routine) return jsonError("Flujo no encontrado", 404);
+
+  const { data: existing } = await supabase
+    .from("gym_exercises")
+    .select("id")
+    .eq("routine_id", routine_id)
+    .eq("exercise_catalog_id", exercise_catalog_id)
+    .maybeSingle();
+
+  if (existing) return jsonError("Ese ejercicio ya está en el flujo");
 
   const { data: catalog, error: catError } = await supabase
     .from("exercise_catalog")
@@ -43,54 +64,36 @@ export async function POST(request: Request) {
     order = count ?? 0;
   }
 
-  const setsPlan = planned_sets ?? defaultPlannedSets(withExerciseMedia(catalog));
-
-  const { data: exercise, error: dbError } = await supabase
-    .from("gym_exercises")
-    .insert({
+  try {
+    const exercise = await insertExerciseWithSets(
+      supabase,
+      user!.id,
       routine_id,
-      user_id: user!.id,
-      exercise_catalog_id: catalog.id,
-      name: catalog.name,
-      sets: setsPlan.length,
-      reps: catalog.default_prescription,
-      rest_seconds: catalog.rest_seconds,
-      sort_order: order,
-    })
-    .select("*, exercise_catalog(*)")
-    .single();
-
-  if (dbError) {
-    return NextResponse.json({ error: dbError.message }, { status: 500 });
+      catalog,
+      order,
+      planned_sets
+    );
+    return NextResponse.json(exercise, { status: 201 });
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "No se pudo añadir ejercicio" },
+      { status: 500 }
+    );
   }
-
-  const rows = setsPlan.map((s: (typeof setsPlan)[0]) => ({
-    gym_exercise_id: exercise.id,
-    user_id: user!.id,
-    set_number: s.set_number,
-    target_reps: s.target_reps,
-    target_seconds: s.target_seconds,
-    target_weight_kg: s.target_weight_kg,
-    target_rir: s.target_rir,
-    rest_seconds: s.rest_seconds,
-  }));
-
-  await supabase.from("gym_planned_sets").insert(rows);
-
-  const { data: withSets } = await supabase
-    .from("gym_exercises")
-    .select("*, exercise_catalog(*), gym_planned_sets(*)")
-    .eq("id", exercise.id)
-    .single();
-
-  return NextResponse.json(withNestedExerciseMedia(withSets!), { status: 201 });
 }
 
 export async function DELETE(request: Request) {
   const { user, error } = await requireAuth();
   if (error) return error;
 
-  const { id } = await request.json();
+  let body: { id?: string };
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError("JSON inválido");
+  }
+
+  const { id } = body;
   if (!id) return jsonError("ID requerido");
 
   const supabase = await getSupabaseServerClient();

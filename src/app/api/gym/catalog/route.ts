@@ -57,18 +57,28 @@ export async function GET(request: Request) {
 
   let items = data ?? [];
 
-  const { data: logs } = await supabase
-    .from("gym_set_logs")
-    .select("exercise_catalog_id")
-    .eq("user_id", user!.id);
+  const { data: counts } = await supabase.rpc("user_catalog_activity_counts", {
+    p_user_id: user!.id,
+  });
 
   const activityMap = new Map<string, number>();
-  for (const log of logs ?? []) {
-    if (!log.exercise_catalog_id) continue;
-    activityMap.set(
-      log.exercise_catalog_id,
-      (activityMap.get(log.exercise_catalog_id) ?? 0) + 1
-    );
+  if (counts?.length) {
+    for (const row of counts as { exercise_catalog_id: string; activity_count: number }[]) {
+      activityMap.set(row.exercise_catalog_id, Number(row.activity_count));
+    }
+  } else {
+    const { data: logs } = await supabase
+      .from("gym_set_logs")
+      .select("exercise_catalog_id")
+      .eq("user_id", user!.id);
+
+    for (const log of logs ?? []) {
+      if (!log.exercise_catalog_id) continue;
+      activityMap.set(
+        log.exercise_catalog_id,
+        (activityMap.get(log.exercise_catalog_id) ?? 0) + 1
+      );
+    }
   }
 
   items = items.map((e) => ({

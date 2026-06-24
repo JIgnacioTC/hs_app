@@ -13,11 +13,13 @@ export function FlowCard({
   flow,
   onStart,
   onEdit,
+  starting,
   className,
 }: {
   flow: Flow;
   onStart: () => void;
   onEdit: () => void;
+  starting?: boolean;
   className?: string;
 }) {
   const [shareOpen, setShareOpen] = useState(false);
@@ -65,17 +67,17 @@ export function FlowCard({
           </button>
           <button
             type="button"
-            disabled={!canStart}
+            disabled={!canStart || starting}
             onClick={onStart}
             className={cn(
               "flex items-center justify-center gap-2 rounded-2xl py-3 text-sm font-medium transition-all",
-              canStart
+              canStart && !starting
                 ? "bg-accent text-background active:scale-[0.98]"
                 : "cursor-not-allowed text-muted"
             )}
           >
             <Play size={16} fill="currentColor" />
-            Entrar al flujo
+            {starting ? "Iniciando…" : "Entrar al flujo"}
           </button>
         </div>
       </Card>

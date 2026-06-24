@@ -1,11 +1,12 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Plus, Sparkles } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { FlowCard } from "@/components/gym/FlowCard";
 import { FlowForge } from "@/components/gym/FlowForge";
 import { FlowEditor } from "@/components/gym/FlowEditor";
@@ -14,65 +15,130 @@ import { GymTabs, type GymTab } from "@/components/gym/GymTabs";
 import { ExerciseBrowser } from "@/components/gym/ExerciseBrowser";
 import { WorkoutHistoryPanel } from "@/components/gym/WorkoutHistoryPanel";
 import { api } from "@/lib/api-client";
+import { sessionDetailToFlow } from "@/lib/gym/session-resume";
 import type { Flow, FlowDraftStep } from "@/lib/gym/flow";
+import type { SetLog } from "@/lib/gym/sets";
 import type { GymSession } from "@/lib/types";
 import type { PlannedSet } from "@/lib/gym/sets";
 
 interface ActiveSession {
   session: GymSession;
   flow: Flow;
+  logs: SetLog[];
 }
 
+type SessionDetail = GymSession & {
+  gym_routines?: Flow;
+  set_logs?: SetLog[];
+};
+
 function GymPageInner() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [tab, setTab] = useState<GymTab>("flows");
   const [flows, setFlows] = useState<Flow[]>([]);
+  const [sessions, setSessions] = useState<GymSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [forging, setForging] = useState(false);
   const [editing, setEditing] = useState<Flow | null>(null);
   const [active, setActive] = useState<ActiveSession | null>(null);
+  const [pendingFlow, setPendingFlow] = useState<Flow | null>(null);
+  const [sessionError, setSessionError] = useState<string | null>(null);
+  const [starting, setStarting] = useState(false);
 
   const load = useCallback(async () => {
-    const r = await api.get<Flow[]>("/api/gym/routines");
-    setFlows(r);
-    setLoading(false);
+    try {
+      const [r, s] = await Promise.all([
+        api.get<Flow[]>("/api/gym/routines"),
+        api.get<GymSession[]>("/api/gym/sessions"),
+      ]);
+      setFlows(r);
+      setSessions(s);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
+
+  const activeSession = sessions.find((s) => s.status === "active");
+
+  const resumeSession = useCallback(async (sessionId: string) => {
+    setStarting(true);
+    setSessionError(null);
+    try {
+      const data = await api.get<SessionDetail>(`/api/gym/sessions/${sessionId}`);
+      const flow = sessionDetailToFlow(data);
+      setActive({
+        session: data,
+        flow,
+        logs: data.set_logs ?? [],
+      });
+    } catch (err) {
+      setSessionError(err instanceof Error ? err.message : "No se pudo reanudar");
+    } finally {
+      setStarting(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const t = searchParams.get("tab");
+    if (t === "history" || t === "exercises" || t === "flows") {
+      setTab(t);
+    }
+    if (searchParams.get("forge") === "1") {
+      setForging(true);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (loading || active) return;
+
+    const startId = searchParams.get("start");
+    if (startId) {
+      const flow = flows.find((f) => f.id === startId);
+      if (flow) void startSession(flow);
+      return;
+    }
+
+    if (searchParams.get("resume") === "1" && activeSession) {
+      void resumeSession(activeSession.id);
+    }
+  }, [searchParams, loading, flows, active, activeSession, resumeSession]);
+
+  function changeTab(next: GymTab) {
+    setTab(next);
+    router.replace(`/gym?tab=${next}`, { scroll: false });
+  }
 
   async function createFlow(data: {
     name: string;
     mood: string;
     steps: FlowDraftStep[];
   }) {
-    const routine = await api.post<Flow>("/api/gym/routines", {
-      name: data.name,
-      description: data.mood,
-    });
-
-    for (let i = 0; i < data.steps.length; i++) {
-      const step = data.steps[i];
-      await api.post("/api/gym/exercises", {
-        routine_id: routine.id,
-        exercise_catalog_id: step.catalogId,
-        sort_order: i,
-        planned_sets: step.planned_sets,
+    setSessionError(null);
+    try {
+      await api.post<Flow>("/api/gym/routines", {
+        name: data.name,
+        description: data.mood,
+        steps: data.steps.map((step) => ({
+          exercise_catalog_id: step.catalogId,
+          planned_sets: step.planned_sets,
+        })),
       });
+      setForging(false);
+      await load();
+    } catch (err) {
+      setSessionError(err instanceof Error ? err.message : "No se pudo crear el flujo");
     }
-
-    setForging(false);
-    await load();
   }
 
   async function addStep(flowId: string, catalogId: string, planned_sets: PlannedSet[]) {
-    const flow = flows.find((f) => f.id === flowId);
-    const order = flow?.gym_exercises?.length ?? 0;
     await api.post("/api/gym/exercises", {
       routine_id: flowId,
       exercise_catalog_id: catalogId,
-      sort_order: order,
       planned_sets,
     });
     await refreshEditing(flowId);
@@ -80,6 +146,17 @@ function GymPageInner() {
 
   async function updateSets(exerciseId: string, sets: PlannedSet[]) {
     await api.put(`/api/gym/exercises/${exerciseId}/sets`, { sets });
+    if (editing) await refreshEditing(editing.id);
+  }
+
+  async function updateFlowMeta(flowId: string, patch: { name?: string; description?: string }) {
+    const updated = await api.patch<Flow>(`/api/gym/routines/${flowId}`, patch);
+    setEditing(updated);
+    await load();
+  }
+
+  async function reorderExercise(exerciseId: string, sortOrder: number) {
+    await api.patch(`/api/gym/exercises/${exerciseId}`, { sort_order: sortOrder });
     if (editing) await refreshEditing(editing.id);
   }
 
@@ -102,29 +179,32 @@ function GymPageInner() {
     await load();
   }
 
-  useEffect(() => {
-    const t = searchParams.get("tab");
-    if (t === "history" || t === "exercises" || t === "flows") {
-      setTab(t);
-    }
-    if (searchParams.get("forge") === "1") {
-      setForging(true);
-    }
-  }, [searchParams]);
+  async function startSession(flow: Flow, force = false) {
+    setSessionError(null);
 
-  useEffect(() => {
-    const startId = searchParams.get("start");
-    if (!startId || loading || active) return;
-    const flow = flows.find((f) => f.id === startId);
-    if (flow) void startSession(flow);
-  }, [searchParams, loading, flows, active]);
+    if (activeSession && activeSession.routine_id === flow.id) {
+      await resumeSession(activeSession.id);
+      return;
+    }
 
-  async function startSession(flow: Flow) {
-    const data = await api.post<{ session: GymSession; routine: Flow }>(
-      "/api/gym/sessions",
-      { routine_id: flow.id }
-    );
-    setActive({ session: data.session, flow: data.routine });
+    if (activeSession && !force) {
+      setPendingFlow(flow);
+      return;
+    }
+
+    setStarting(true);
+    try {
+      const data = await api.post<{ session: GymSession; routine: Flow }>(
+        "/api/gym/sessions",
+        { routine_id: flow.id }
+      );
+      setActive({ session: data.session, flow: data.routine, logs: [] });
+      await load();
+    } catch (err) {
+      setSessionError(err instanceof Error ? err.message : "No se pudo iniciar sesión");
+    } finally {
+      setStarting(false);
+    }
   }
 
   async function completeSession() {
@@ -132,16 +212,33 @@ function GymPageInner() {
     await api.patch(`/api/gym/sessions/${active.session.id}`, { status: "completed" });
     setActive(null);
     await load();
+    router.replace("/gym?tab=flows", { scroll: false });
   }
 
   async function abandonSession() {
     if (!active) return;
     await api.patch(`/api/gym/sessions/${active.session.id}`, { status: "abandoned" });
     setActive(null);
+    await load();
+    router.replace("/gym?tab=flows", { scroll: false });
+  }
+
+  function pauseSession() {
+    setActive(null);
+    router.replace("/gym?tab=flows", { scroll: false });
   }
 
   if (forging) {
-    return <FlowForge onSave={createFlow} onCancel={() => setForging(false)} />;
+    return (
+      <>
+        <FlowForge onSave={createFlow} onCancel={() => setForging(false)} />
+        {sessionError && (
+          <p className="fixed bottom-24 left-4 right-4 z-[100] rounded-xl bg-danger/10 px-3 py-2 text-xs text-danger">
+            {sessionError}
+          </p>
+        )}
+      </>
+    );
   }
 
   if (editing) {
@@ -150,6 +247,8 @@ function GymPageInner() {
         flow={editing}
         onAddStep={(catalogId, sets) => addStep(editing.id, catalogId, sets)}
         onUpdateSets={updateSets}
+        onUpdateFlow={(patch) => updateFlowMeta(editing.id, patch)}
+        onReorder={(exerciseId, order) => reorderExercise(exerciseId, order)}
         onRemoveStep={removeStep}
         onDeleteFlow={() => deleteFlow(editing.id)}
         onClose={() => setEditing(null)}
@@ -162,8 +261,10 @@ function GymPageInner() {
       <SessionRunner
         session={active.session}
         flow={active.flow}
+        initialLogs={active.logs}
         onComplete={completeSession}
-        onExit={abandonSession}
+        onPause={pauseSession}
+        onAbandon={abandonSession}
       />
     );
   }
@@ -178,7 +279,27 @@ function GymPageInner() {
         </p>
       </header>
 
-      <GymTabs active={tab} onChange={setTab} />
+      {activeSession && (
+        <Card className="mb-4 border-accent/30 bg-accent/5 p-4">
+          <p className="grok-label text-accent">Sesión en curso</p>
+          <p className="mt-1 font-medium">
+            {(activeSession.gym_routines as { name?: string } | undefined)?.name ?? "Rutina activa"}
+          </p>
+          <Button
+            className="mt-3 w-full gap-2"
+            disabled={starting}
+            onClick={() => void resumeSession(activeSession.id)}
+          >
+            Continuar entrenamiento
+          </Button>
+        </Card>
+      )}
+
+      {sessionError && (
+        <p className="mb-4 rounded-xl bg-danger/10 px-3 py-2 text-xs text-danger">{sessionError}</p>
+      )}
+
+      <GymTabs active={tab} onChange={changeTab} />
 
       {tab === "flows" && (
         <>
@@ -213,8 +334,9 @@ function GymPageInner() {
                 <FlowCard
                   key={flow.id}
                   flow={flow}
-                  onStart={() => startSession(flow)}
+                  onStart={() => void startSession(flow)}
                   onEdit={() => setEditing(flow)}
+                  starting={starting}
                 />
               ))}
             </div>
@@ -225,6 +347,21 @@ function GymPageInner() {
       {tab === "history" && <WorkoutHistoryPanel />}
 
       {tab === "exercises" && <ExerciseBrowser />}
+
+      <ConfirmDialog
+        open={Boolean(pendingFlow)}
+        title="¿Abandonar sesión anterior?"
+        description="Tienes una sesión activa. Si inicias otra rutina, se abandonará el progreso anterior."
+        confirmLabel="Abandonar e iniciar"
+        cancelLabel="Cancelar"
+        danger
+        onConfirm={() => {
+          const flow = pendingFlow;
+          setPendingFlow(null);
+          if (flow) void startSession(flow, true);
+        }}
+        onCancel={() => setPendingFlow(null)}
+      />
     </AppShell>
   );
 }

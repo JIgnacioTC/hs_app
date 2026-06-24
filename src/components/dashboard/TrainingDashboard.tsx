@@ -124,7 +124,7 @@ export function TrainingDashboard() {
           <p className="mt-1 font-medium">
             {(inProgress.gym_routines as { name?: string } | undefined)?.name ?? "Rutina activa"}
           </p>
-          <Button className="mt-3 w-full gap-2" onClick={() => router.push("/gym")}>
+          <Button className="mt-3 w-full gap-2" onClick={() => router.push("/gym?resume=1")}>
             <Play size={16} fill="currentColor" />
             Continuar entrenamiento
           </Button>

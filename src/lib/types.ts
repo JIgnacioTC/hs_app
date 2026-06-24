@@ -56,6 +56,9 @@ export interface HabitLog {
   created_at: string;
 }
 
+export type { PlannedSet, SetLog, ExerciseHistory, HistoryPoint } from "@/lib/gym/sets";
+import type { PlannedSet, SetLog } from "@/lib/gym/sets";
+
 export interface GymRoutine {
   id: string;
   user_id: string;
@@ -81,34 +84,6 @@ export interface GymExercise {
   created_at: string;
   exercise_catalog?: ExerciseCatalog | null;
   gym_planned_sets?: PlannedSet[];
-}
-
-export interface PlannedSet {
-  id: string;
-  gym_exercise_id: string;
-  user_id: string;
-  set_number: number;
-  target_reps: number | null;
-  target_seconds: number | null;
-  target_weight_kg: number | null;
-  target_rir: number | null;
-  rest_seconds: number;
-  created_at?: string;
-}
-
-export interface SetLog {
-  id: string;
-  session_id: string;
-  user_id: string;
-  gym_exercise_id: string;
-  exercise_catalog_id: string | null;
-  set_number: number;
-  reps: number | null;
-  duration_seconds: number | null;
-  weight_kg: number | null;
-  rir: number | null;
-  rest_seconds_used: number | null;
-  completed_at: string;
 }
 
 export interface GymSession {
